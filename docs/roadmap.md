@@ -1,5 +1,9 @@
 # Roadmap
 
+The detailed algorithm, architecture, acceptance gates, and task ownership are
+defined in `technical-route.md` and `work-packages.md`. This page remains the
+milestone summary.
+
 ## Milestone 0 - Collaboration Foundation
 
 - Private GitHub repository
@@ -9,9 +13,11 @@
 
 ## Milestone 1 - Detector Baseline
 
+- Independent technical-route review
+- Freeze annotation policy and double-reviewed gold set
 - Convert reviewed car5 boxes into a training format
 - Create leakage-safe train/validation/test splits by time sequence
-- Benchmark candidate detectors with per-class precision, recall, and mAP
+- Benchmark RTMDet and RF-DETR on one frozen split
 - Export confidence-calibrated Label Studio predictions
 
 ## Milestone 2 - Human-in-the-Loop

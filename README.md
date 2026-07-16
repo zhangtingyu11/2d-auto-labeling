@@ -50,3 +50,11 @@ tests/                   Automated tests
 
 See `docs/collaboration.md` for the complete two-developer workflow. The first
 implementation milestone is documented in `docs/roadmap.md`.
+
+## Technical Direction
+
+- Detailed route: `docs/technical-route.md`
+- Mainstream solution research: `docs/research/2026-07-2d-autolabeling-landscape.md`
+- Shared work packages: `docs/work-packages.md`
+- Agent working agreement: `AGENTS.md`
+- Colleague review prompt: `docs/agent-prompts/colleague-route-review.md`
