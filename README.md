@@ -42,10 +42,11 @@ tests/                   Automated tests
 
 ## Development Workflow
 
-1. Pull the latest `main` branch.
-2. Create a branch such as `feat/detector-baseline`.
+1. Use `dev/fengyiovo` or `dev/colleague` for daily work.
+2. Synchronize the latest `main` into the personal branch before coding.
 3. Keep commits small and run `pytest` and `ruff check .`.
-4. Push the branch and open a pull request.
+4. Push the personal branch and open a pull request into `main`.
 5. The other developer reviews before merge.
 
-The first implementation milestone is documented in `docs/roadmap.md`.
+See `docs/collaboration.md` for the complete two-developer workflow. The first
+implementation milestone is documented in `docs/roadmap.md`.
