@@ -1,0 +1,10 @@
+version: 1
+classes:
+  - Car
+  - Truck
+  - Bulldozer
+  - Excavator
+  - WaterTruck
+  - Sign
+  - Pedestrian
+  - BoxTruck
