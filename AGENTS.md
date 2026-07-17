@@ -18,21 +18,31 @@ Read these files before implementation:
 
 1. `docs/technical-route.md`
 2. `docs/work-packages.md`
-3. `docs/research/2026-07-2d-autolabeling-landscape.md`
-4. `docs/collaboration.md`
+3. `docs/decisions/`
+4. `docs/evaluation-policy.md`
+5. `docs/label-studio-contract.md`
+6. `docs/research/2026-07-2d-autolabeling-landscape.md`
+7. `docs/collaboration.md`
 
 The `main` branch defines requirements and work packages. Do not implement
 directly on `main`. Merge the latest `origin/main` into the assigned personal
 branch, implement there, and open a pull request.
 
-## Initial Colleague Task
+## Current Work
 
-The first task on `dev/colleague` is an independent review of the technical
-route, not model implementation. Write the review to:
+The independent route review is complete at:
 
 `docs/reviews/technical-route-review-colleague.md`
 
-Use the checklist in `docs/agent-prompts/colleague-route-review.md`.
+Current parallel work:
+
+- `dev/fengyiovo`: WP-01 data contract and validator;
+- `dev/colleague`: WP-02 annotation policy and gold-set protocol.
+
+The colleague uses
+`docs/agent-prompts/colleague-wp02-annotation-policy.md`. Neither developer
+starts detector training until the detector-start gate in
+`docs/work-packages.md` passes.
 
 ## Repository Boundaries
 
@@ -51,6 +61,10 @@ The ignore rules in `.gitignore` are mandatory.
 - Keep internal boxes in pixel-space `xyxy`.
 - Convert to Label Studio percentage coordinates only at the integration edge.
 - Preserve deterministic `frame_id`, `timestamp`, and `camera_id` ordering.
+- Treat only the 5,568 reviewed keyframe-camera tasks as v1 supervised data;
+  high-rate intermediate frames are temporal context.
+- Use the six active taxonomy classes from ADR 0002. Do not train zero-positive
+  `Pedestrian` or `BoxTruck` heads in v1.
 - Treat each camera as an independent sequence in tracking v1.
 - Never convert a skipped task into a verified annotation. A reviewed empty
   image must use the explicit `verified_empty` state.
