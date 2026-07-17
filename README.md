@@ -27,6 +27,31 @@ uvicorn car5_autolabel.api.main:app --reload --port 8090
 
 Then open `http://127.0.0.1:8090/health`.
 
+## Dataset Validation
+
+Build the 928-keyframe manifest without committing company data:
+
+```powershell
+car5-autolabel build-manifest `
+  --data-root "D:\data\car5_20260611_day_02" `
+  --output "D:\private-output\car5_v1_manifest.jsonl" `
+  --report "D:\private-output\car5_v1_manifest_report.json"
+```
+
+Validate a reviewed Label Studio export against that manifest:
+
+```powershell
+car5-autolabel validate-label-studio `
+  --export "D:\private-output\label-studio-export.json" `
+  --manifest "D:\private-output\car5_v1_manifest.jsonl" `
+  --output "D:\private-output\car5_v1_annotations.json" `
+  --report "D:\private-output\car5_v1_annotations_report.json"
+```
+
+Both commands exit with code `2` when the data contract is violated. Use
+`--include-context` to include all 27,840 images in the manifest and
+`--verify-dimensions` for release validation.
+
 ## Repository Layout
 
 ```text

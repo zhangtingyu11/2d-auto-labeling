@@ -6,9 +6,9 @@ secrets/
 credentials/
 
 # Company data and annotation state
-data/
-datasets/
-images/
+/data/
+/datasets/
+/images/
 annotations/private/
 label-studio-data/
 *.db

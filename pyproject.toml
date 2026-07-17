@@ -17,6 +17,9 @@ dependencies = [
   "uvicorn[standard]>=0.34,<1",
 ]
 
+[project.scripts]
+car5-autolabel = "car5_autolabel.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "httpx>=0.28,<1",

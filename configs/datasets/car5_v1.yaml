@@ -1,0 +1,18 @@
+version: 1
+dataset_id: car5_20260611_day_02
+camera_order:
+  - front
+  - front_left
+  - front_right
+  - back
+  - back_left
+  - back_right
+image_width: 1920
+image_height: 1080
+source_frames_per_camera: 4640
+reviewed_keyframes: 928
+reviewed_images: 5568
+temporal_context_images: 22272
+sequence_gap_threshold_ms: 1000
+development_fold_count: 5
+release_policy: review_assistance_only
