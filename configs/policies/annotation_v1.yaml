@@ -1,0 +1,37 @@
+version: annotation_v1
+taxonomy_version: taxonomy_v1
+camera_policy_version: camera_policy_v1
+image_policy:
+  evidence_source: current_image_pixels_only
+  allow_lidar_projection_as_ground_truth: false
+  allow_temporal_inference_as_ground_truth: false
+  box_extent: visible_pixels_only
+  clip_boxes_to_image: true
+minimum_target:
+  min_width_px: 8
+  min_height_px: 8
+  require_stable_active_class: true
+  below_threshold_action: do_not_label_too_small
+attributes:
+  occlusion:
+    none: visible_fraction_gte_0_90
+    partial: visible_fraction_gte_0_50_and_lt_0_90
+    heavy: visible_fraction_lt_0_50_but_class_still_identifiable
+  truncated: touches_image_boundary_and_continues_outside_frame
+host_vehicle:
+  action: ignore
+  box_ignore_overlap_fraction: 0.60
+  require_reviewed_camera_polygon: true
+review_states:
+  - unreviewed_prediction
+  - human_verified
+  - human_modified
+  - human_created
+  - verified_empty
+  - rejected_prediction
+empty_task:
+  require_full_image_review: true
+  require_explicit_submission: true
+  skipped_is_empty: false
+prediction_deletion_state: rejected_prediction
+automatic_acceptance_enabled: false

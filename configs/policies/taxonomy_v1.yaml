@@ -1,0 +1,33 @@
+version: taxonomy_v1
+status: frozen_for_v1
+active_classes:
+  - id: 0
+    name: Car
+    description: Passenger or light road vehicle visually identifiable as a car.
+  - id: 1
+    name: Truck
+    description: Default heavy road truck when no more specific active class is visually certain.
+  - id: 2
+    name: Bulldozer
+    description: Earth mover identifiable by its blade and body shape.
+  - id: 3
+    name: Excavator
+    description: Machine identifiable by an excavator boom, dipper, and bucket.
+  - id: 4
+    name: WaterTruck
+    description: Truck whose water tank or spraying equipment is visually identifiable.
+  - id: 5
+    name: Sign
+    description: External traffic or worksite sign, excluding host-vehicle text and logos.
+inactive_candidates:
+  - name: Pedestrian
+    class_id: null
+    reason: no_positive_boxes_in_v1_reviewed_export
+  - name: BoxTruck
+    class_id: null
+    reason: no_positive_boxes_in_v1_reviewed_export
+ambiguity_rules:
+  watertruck_without_visible_tank_or_sprayer: Truck
+  generic_heavy_road_vehicle: Truck
+  unresolved_active_class: needs_adjudication
+  inactive_candidate_observation: candidate_observation_only

@@ -1,10 +1,19 @@
 version: 1
-classes:
-  - Car
-  - Truck
-  - Bulldozer
-  - Excavator
-  - WaterTruck
-  - Sign
-  - Pedestrian
-  - BoxTruck
+active_classes:
+  - id: 0
+    name: Car
+  - id: 1
+    name: Truck
+  - id: 2
+    name: Bulldozer
+  - id: 3
+    name: Excavator
+  - id: 4
+    name: WaterTruck
+  - id: 5
+    name: Sign
+inactive_candidates:
+  - name: Pedestrian
+    reason: no_positive_boxes_in_v1_reviewed_export
+  - name: BoxTruck
+    reason: no_positive_boxes_in_v1_reviewed_export

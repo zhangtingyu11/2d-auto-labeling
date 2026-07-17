@@ -1,0 +1,42 @@
+version: camera_policy_v1
+status: blocked_until_ignore_polygons_are_double_reviewed
+coordinate_space: pixel_xy
+image_size:
+  width: 1920
+  height: 1080
+ignore_polygon_semantics:
+  purpose: exclude_visible_host_vehicle_only
+  point_order: clockwise_or_counterclockwise
+  minimum_points: 3
+  empty_list_means: not_reviewed_and_release_blocked
+cameras:
+  - id: front
+    order: 0
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
+  - id: front_left
+    order: 1
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
+  - id: front_right
+    order: 2
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
+  - id: back
+    order: 3
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
+  - id: back_left
+    order: 4
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
+  - id: back_right
+    order: 5
+    rotation_degrees: 0
+    ignore_polygons: []
+    polygon_review_status: pending_external_image_review
