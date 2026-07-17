@@ -1,0 +1,27 @@
+version: 1
+active_classes:
+  - id: 0
+    name: Car
+    definition: Passenger cars, SUVs, vans, and visually identifiable light utility vehicles.
+  - id: 1
+    name: Truck
+    definition: Rigid or articulated cargo and mining trucks without a visible water-tank identity.
+  - id: 2
+    name: Bulldozer
+    definition: Tracked or wheeled earthmover whose defining working attachment is a front blade.
+  - id: 3
+    name: Excavator
+    definition: Earthmover identifiable by a boom, stick, and bucket or hydraulic breaker.
+  - id: 4
+    name: WaterTruck
+    definition: Truck identifiable by a water tank, spray bar, cannon, or watering equipment.
+  - id: 5
+    name: Sign
+    definition: Fixed traffic, safety, regulatory, or site-operation sign.
+inactive_classes:
+  - Pedestrian
+  - BoxTruck
+precedence:
+  - WaterTruck_over_Truck_when_water_equipment_is_visible
+  - Excavator_over_Bulldozer_when_boom_stick_bucket_is_visible
+  - specific_active_class_over_Truck

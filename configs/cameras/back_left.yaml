@@ -1,0 +1,6 @@
+version: 1
+camera_id: back_left
+image_size: [1920, 1080]
+ignore_regions:
+  - name: host_left_body
+    polygon_xy: [[0, 0], [250, 0], [210, 380], [175, 1080], [0, 1080]]

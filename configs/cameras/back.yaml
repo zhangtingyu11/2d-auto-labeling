@@ -1,0 +1,10 @@
+version: 1
+camera_id: back
+image_size: [1920, 1080]
+ignore_regions:
+  - name: host_upper_body
+    polygon_xy: [[0, 0], [1920, 0], [1920, 300], [1590, 300], [1430, 420], [1320, 350], [600, 350], [500, 420], [320, 310], [0, 310]]
+  - name: host_left_chain
+    polygon_xy: [[410, 300], [530, 350], [90, 720], [0, 680], [0, 550]]
+  - name: host_right_chain
+    polygon_xy: [[1380, 310], [1510, 340], [1920, 620], [1920, 760], [1810, 680]]

@@ -1,5 +1,12 @@
-from enum import StrEnum
 from typing import Any
+
+try:
+    from enum import StrEnum
+except ImportError:  # pragma: no cover - exercised by the Python 3.10 training runtime
+    from enum import Enum
+
+    class StrEnum(str, Enum):  # noqa: UP042
+        __str__ = str.__str__
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -116,4 +123,20 @@ class ManifestBuildResult(BaseModel):
 
 class LabelStudioParseResult(BaseModel):
     annotations: list[CanonicalImageAnnotation]
+    report: ValidationReport
+
+
+class GoldSetRow(BaseModel):
+    dataset_release_id: str
+    image_id: str
+    sha256: str = Field(min_length=64, max_length=64)
+    frame_id: str
+    camera_id: str
+    sequence_id: str
+    sampling_reasons: list[str] = Field(min_length=1)
+    review_state: str = "frozen"
+
+
+class GoldSetBuildResult(BaseModel):
+    rows: list[GoldSetRow]
     report: ValidationReport

@@ -9,7 +9,7 @@ branches and reaches `main` only through a reviewed pull request.
 | --- | --- |
 | `main` | Requirements, accepted architecture, task definitions, released code |
 | `dev/fengyiovo` | Fengyiovo implementation and experiments |
-| `dev/colleague` | Colleague implementation, experiments, and independent review |
+| `dev/colleague` | Historical colleague review branch; no current execution dependency |
 
 ## WP-00: Independent Route Review
 
@@ -82,9 +82,9 @@ Gate:
 
 ## WP-02: Annotation Policy and Gold Set
 
-Owner: colleague, reviewed by Fengyiovo
+Owner: Fengyiovo
 
-Branch: `dev/colleague`
+Branch: `dev/fengyiovo`
 
 Create:
 
@@ -104,13 +104,9 @@ Primary folders:
 
 Gate:
 
-- two developers independently agree on at least 98% of sampled boxes after
-  policy clarification;
-- every disagreement category has a documented resolution.
-
-Use `docs/agent-prompts/colleague-wp02-annotation-policy.md` for the assigned
-Agent task. Fengyiovo supplies and reviews camera ignore polygons against the
-external images; the colleague owns the policy text and synthetic schemas.
+- deterministic 720-image gold set contains 120 complete six-camera groups;
+- a two-pass solo audit covers rare, small, edge, ignore-region, and empty cases;
+- every disagreement category has a documented policy resolution.
 
 ## Detector-Start Gate
 
@@ -154,7 +150,7 @@ Gate:
 
 ## WP-04: RF-DETR Challenger
 
-Owner: colleague
+Owner: Fengyiovo
 
 Depends on: WP-01, WP-02, and the detector-start gate
 
@@ -181,7 +177,7 @@ Gate:
 
 ## WP-05: Evaluation and Selection Harness
 
-Owner: colleague, reviewed by Fengyiovo
+Owner: Fengyiovo
 
 Create:
 
@@ -201,7 +197,7 @@ Primary folders:
 
 ## WP-06: Temporal Refinement
 
-Owner: colleague, reviewed by Fengyiovo
+Owner: Fengyiovo
 
 Depends on: selected detector and WP-05
 

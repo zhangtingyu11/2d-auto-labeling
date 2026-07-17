@@ -1,0 +1,27 @@
+version: 1
+detector: rtmdet_s
+pretrained_initialization: coco
+held_out_fold: s00
+stages:
+  smoke:
+    wall_time_minutes: 10
+    purpose: verify_decode_forward_backward_checkpoint_and_evaluation
+    fail_on_non_finite_loss: true
+  pilot:
+    wall_time_minutes: 120
+    evaluation_interval_epochs: 1
+    purpose: verify_learning_direction_before_long_training
+  long_train:
+    enabled_only_after_pilot_gate: true
+pilot_gate:
+  require_non_empty_predictions: true
+  require_loss_decrease: true
+  truck_recall_at_iou_050_min: 0.60
+  excavator_recall_at_iou_050_min: 0.40
+  require_camera_slice_report: true
+  require_prediction_visualizations: true
+  require_host_region_false_positive_review: true
+long_train_selection:
+  metric: review_threshold_recall_with_correction_cost
+  early_stopping_patience_evaluations: 8
+  restore_best_checkpoint: true

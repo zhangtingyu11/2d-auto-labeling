@@ -1,0 +1,4 @@
+version: 1
+camera_id: front_left
+image_size: [1920, 1080]
+ignore_regions: []

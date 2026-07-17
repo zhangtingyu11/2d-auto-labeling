@@ -1,0 +1,22 @@
+version: 1
+dataset_release_id: car5_20260611_day_02_labels_v1
+box_geometry: tight_visible_extent_xyxy
+host_vehicle: always_excluded
+minimum_visibility:
+  rule: label_when_class_is_reliably_identifiable
+  hard_pixel_cutoff: null
+  rationale: reviewed edge-truncated boxes are as narrow as four pixels
+truncation:
+  mark_when_box_touches_image_boundary_px: 1
+occlusion:
+  rule: box_visible_extent_only
+  mark_when_target_is_partly_hidden_by_external_object: true
+empty_image:
+  requires_full_image_scan: true
+  skipped_is_verified_empty: false
+ambiguity:
+  action: leave_unboxed_and_log_for_second_pass
+ignore_region_prediction_overlap:
+  metric: intersection_over_prediction_area
+  threshold: 0.80
+automatic_acceptance: false

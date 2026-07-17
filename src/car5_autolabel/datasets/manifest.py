@@ -46,6 +46,19 @@ def read_manifest_jsonl(path: Path) -> list[ManifestRow]:
     return rows
 
 
+def read_canonical_annotations_json(path: Path) -> list[CanonicalImageAnnotation]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid canonical annotation JSON: {exc}") from exc
+    if not isinstance(payload, list):
+        raise ValueError("canonical annotation root must be a list")
+    try:
+        return [CanonicalImageAnnotation.model_validate(item) for item in payload]
+    except ValueError as exc:
+        raise ValueError(f"invalid canonical annotation payload: {exc}") from exc
+
+
 def write_validation_report(report: ValidationReport, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = report.model_dump(mode="json")
@@ -63,5 +76,18 @@ def write_canonical_annotations_json(
     payload = [annotation.model_dump(mode="json") for annotation in annotations]
     output_path.write_text(
         json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_json(payload: object, output_path: Path, *, compact: bool = False) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    kwargs = (
+        {"separators": (",", ":")}
+        if compact
+        else {"indent": 2}
+    )
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=True, sort_keys=True, **kwargs) + "\n",
         encoding="utf-8",
     )

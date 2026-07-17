@@ -52,6 +52,47 @@ Both commands exit with code `2` when the data contract is violated. Use
 `--include-context` to include all 27,840 images in the manifest and
 `--verify-dimensions` for release validation.
 
+Build the frozen 720-image gold set as 120 complete six-camera timestamp
+groups, then export one of the five leave-one-sequence-out COCO folds:
+
+```powershell
+car5-autolabel build-gold-set `
+  --manifest "D:\private-output\car5_v1_manifest.jsonl" `
+  --annotations "D:\private-output\car5_v1_annotations.json" `
+  --output "D:\private-output\gold_v1.json" `
+  --report "D:\private-output\gold_v1_report.json" `
+  --dataset-release-id car5_20260611_day_02_labels_v1
+
+car5-autolabel export-coco `
+  --manifest "D:\private-output\car5_v1_manifest.jsonl" `
+  --annotations "D:\private-output\car5_v1_annotations.json" `
+  --output-dir "D:\private-output\coco_s00" `
+  --held-out-fold s00
+```
+
+Training is pilot-first and compares two pure 2D detectors on the same held-out
+fold: RTMDet-S is the fast baseline and RF-DETR-S is the accuracy challenger.
+Each model runs a short smoke test and a 1 to 2 hour pilot. Long training starts
+only after metrics and prediction images pass `configs/training/pilot_gate.yaml`.
+
+Stage the RF-DETR COCO layout without duplicating the cached images, then run a
+one-epoch smoke test:
+
+```bash
+python tools/stage_rfdetr_dataset.py \
+  --coco-root /opt/car5-workspace/Docker/annotations/private/phase0/coco_s00 \
+  --images-root /opt/car5-data/car5_v1/images \
+  --output-dir /opt/car5-data/rfdetr_s00_smoke \
+  --max-train-images 128 \
+  --max-valid-images 120
+
+RF_HOME=/opt/car5-model-cache/rfdetr \
+python tools/run_rfdetr.py \
+  --stage smoke \
+  --dataset-dir /opt/car5-data/rfdetr_s00_smoke \
+  --output-dir /opt/car5-runs/rfdetr_s_smoke_s00
+```
+
 ## Repository Layout
 
 ```text

@@ -1,0 +1,73 @@
+version: 1
+model: rfdetr_small
+pretrained_initialization: rf-detr-small.pth
+resolution: 512
+classes:
+  - Car
+  - Truck
+  - Bulldozer
+  - Excavator
+  - WaterTruck
+  - Sign
+
+common:
+  seed: 20260717
+  batch_size: 2
+  grad_accum_steps: 8
+  lr: 0.0001
+  lr_encoder: 0.00005
+  weight_decay: 0.0001
+  use_ema: true
+  ema_decay: 0.993
+  ema_tau: 100
+  num_workers: 8
+  multi_scale: true
+  expanded_scales: false
+  amp_dtype: fp16
+  fp16_eval: true
+  eval_interval: 1
+  checkpoint_interval: 1
+  eval_max_dets: 300
+  log_per_class_metrics: true
+  compute_val_loss: true
+  tensorboard: false
+  wandb: false
+  run_test: false
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  progress_bar: tqdm
+  accelerator: gpu
+  devices: 1
+
+stages:
+  smoke:
+    epochs: 1
+    lr_drop: 1
+    warmup_epochs: 0.0
+    notes: car5 RF-DETR-S pipeline and memory smoke test
+  pilot:
+    epochs: 6
+    lr_drop: 5
+    warmup_epochs: 0.25
+    notes: car5 RF-DETR-S 1-to-2-hour pilot
+  pilot_tuned:
+    epochs: 8
+    lr: 0.00005
+    lr_encoder: 0.00001
+    lr_drop: 6
+    warmup_epochs: 0.5
+    early_stopping: true
+    early_stopping_patience: 3
+    early_stopping_min_delta: 0.002
+    early_stopping_use_ema: true
+    notes: car5 RF-DETR-S lower-learning-rate follow-up pilot
+  long:
+    epochs: 40
+    lr_drop: 32
+    warmup_epochs: 0.5
+    early_stopping: true
+    early_stopping_patience: 8
+    early_stopping_min_delta: 0.001
+    early_stopping_use_ema: true
+    notes: car5 RF-DETR-S gated long training
