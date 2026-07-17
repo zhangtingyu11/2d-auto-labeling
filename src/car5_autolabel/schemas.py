@@ -22,4 +22,9 @@ class ImagePrediction(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     model_version: str
+    config_sha256: str | None = None
+    checkpoint_sha256: str | None = None
+    dataset_manifest_id: str | None = None
+    source: str = "detector"
+    review_status: str = "unreviewed_prediction"
     boxes: list[BoundingBox] = Field(default_factory=list)

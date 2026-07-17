@@ -63,3 +63,15 @@ implementation milestone is documented in `docs/roadmap.md`.
 - Shared work packages: `docs/work-packages.md`
 - Agent working agreement: `AGENTS.md`
 - Colleague WP-02 prompt: `docs/agent-prompts/colleague-wp02-annotation-policy.md`
+
+## Local 2D Auto-Label V1
+
+The first review-assistance CLI is documented in `docs/v1-user-guide.md`.
+On the prepared workstation, run:
+
+```powershell
+.\run_v1_autolabel.bat "C:\path\to\car5_dataset_root"
+```
+
+The command produces resumable prediction JSONL and a Label Studio task JSON.
+V1 is human-review assistance only; it does not automatically accept labels.

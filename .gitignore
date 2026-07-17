@@ -38,7 +38,11 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.venv-train2d/
 venv/
+
+# Downloaded upstream training source (pinned by setup documentation/config).
+vendor/
 
 # Editors and operating systems
 .vscode/

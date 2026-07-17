@@ -24,6 +24,47 @@ def box_to_label_studio(box: BoundingBox, width: int, height: int) -> dict:
 
 
 def prediction_to_label_studio(prediction: ImagePrediction) -> list[dict]:
-    return [
+    results = [
         box_to_label_studio(box, prediction.width, prediction.height) for box in prediction.boxes
     ]
+    for result in results:
+        result["meta"] = {
+            "image_id": prediction.image_id,
+            "source": prediction.source,
+            "review_status": prediction.review_status,
+            "model_version": prediction.model_version,
+            "config_sha256": prediction.config_sha256,
+            "checkpoint_sha256": prediction.checkpoint_sha256,
+            "dataset_manifest_id": prediction.dataset_manifest_id,
+        }
+    return results
+
+
+def prediction_to_label_studio_payload(prediction: ImagePrediction) -> dict:
+    """Build one Label Studio prediction object with auditable provenance."""
+    return {
+        "model_version": prediction.model_version,
+        "score": max((box.score for box in prediction.boxes), default=0.0),
+        "result": prediction_to_label_studio(prediction),
+    }
+
+
+def prediction_task_payload(
+    prediction: ImagePrediction,
+    *,
+    image_url: str,
+    camera_id: str,
+    frame_id: int,
+    capture_timestamp: str,
+) -> dict:
+    """Build an idempotent Label Studio task import with one prediction."""
+    return {
+        "data": {
+            "image": image_url,
+            "image_id": prediction.image_id,
+            "camera": camera_id,
+            "frame_id": str(capture_timestamp),
+            "manifest_frame_id": frame_id,
+        },
+        "predictions": [prediction_to_label_studio_payload(prediction)],
+    }
