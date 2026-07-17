@@ -19,6 +19,8 @@ def test_instances_to_boxes_filters_clips_and_orders() -> None:
         "y2": 50.0,
         "label": "Excavator",
         "score": 0.95,
+        "raw_label": None,
+        "postprocess_reason": None,
         "track_id": None,
     }
     assert boxes[1].x2 == 100

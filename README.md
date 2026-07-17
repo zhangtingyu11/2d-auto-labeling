@@ -75,3 +75,16 @@ On the prepared workstation, run:
 
 The command produces resumable prediction JSONL and a Label Studio task JSON.
 V1 is human-review assistance only; it does not automatically accept labels.
+
+## Local 2D Auto-Label V1.1
+
+V1.1 adds a full-view deployment checkpoint, cross-class duplicate removal,
+and the mine-specific rule that ambiguous WaterTruck candidates fall back to
+Truck. See `docs/v1.1-user-guide.md`. Run:
+
+```powershell
+.\run_v1_1_autolabel.bat "C:\path\to\car5_dataset_root"
+```
+
+V1.1 still requires human review. Its all-data fit score must not be reported
+as independent validation accuracy.

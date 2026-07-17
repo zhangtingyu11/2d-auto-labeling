@@ -8,6 +8,8 @@ class BoundingBox(BaseModel):
     y2: float = Field(gt=0)
     label: str
     score: float = Field(ge=0, le=1)
+    raw_label: str | None = None
+    postprocess_reason: str | None = None
     track_id: str | None = None
 
     @model_validator(mode="after")

@@ -122,8 +122,11 @@ def evaluate_prediction_jsonl(
     reviewed_tasks: dict[tuple[str, str], ReviewedTask],
     *,
     iou_threshold: float = 0.5,
+    sequence_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     rows = _load_predictions(Path(prediction_path))
+    if sequence_ids is not None:
+        rows = [row for row in rows if str(row.get("sequence_id")) in sequence_ids]
     seen_keys: set[tuple[str, str]] = set()
     totals = {"proposal": Counter(), "class_aware": Counter()}
     per_camera: dict[str, dict[str, Counter[str]]] = defaultdict(
@@ -131,6 +134,7 @@ def evaluate_prediction_jsonl(
     )
     gt_class_total: Counter[str] = Counter()
     gt_class_matched: Counter[str] = Counter()
+    gt_class_matched_class_aware: Counter[str] = Counter()
     unknown_tasks: list[str] = []
     duplicate_tasks: list[str] = []
     prediction_labels: Counter[str] = Counter()
@@ -171,10 +175,15 @@ def evaluate_prediction_jsonl(
             per_camera[camera][mode].update(tp=tp, fp=fp, fn=fn)
             if mode == "proposal":
                 gt_class_matched.update(reviewed.boxes[index].class_name for index, _, _ in matches)
+            else:
+                gt_class_matched_class_aware.update(
+                    reviewed.boxes[index].class_name for index, _, _ in matches
+                )
 
     result = {
         "prediction_path": str(Path(prediction_path)),
         "iou_threshold": iou_threshold,
+        "sequence_ids": sorted(sequence_ids) if sequence_ids is not None else None,
         "evaluated_tasks": len(seen_keys) - len(unknown_tasks),
         "duplicate_tasks": sorted(duplicate_tasks),
         "unknown_or_unreviewed_tasks": sorted(unknown_tasks),
@@ -212,6 +221,14 @@ def evaluate_prediction_jsonl(
                 "total": total,
                 "recall": gt_class_matched[class_name] / total if total else 0,
             }
+            for class_name, total in sorted(gt_class_total.items())
+        },
+        "class_aware_by_class": {
+            class_name: _metrics(
+                gt_class_matched_class_aware[class_name],
+                prediction_labels[class_name] - gt_class_matched_class_aware[class_name],
+                total - gt_class_matched_class_aware[class_name],
+            )
             for class_name, total in sorted(gt_class_total.items())
         },
     }

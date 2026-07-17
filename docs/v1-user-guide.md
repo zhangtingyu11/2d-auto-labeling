@@ -26,7 +26,7 @@ Custom output, threshold, and batch size are available through PowerShell:
 .\run_v1_autolabel.ps1 `
   -DatasetRoot "C:\path\to\car5_20260611_day_02" `
   -Output ".\artifacts\v1_predictions\predictions.jsonl" `
-  -ScoreThreshold 0.1 `
+  -ScoreThreshold 0.2 `
   -BatchSize 32
 ```
 
@@ -54,14 +54,16 @@ image.
 ## Measured Local Behavior
 
 - True batch inference tested at batch sizes 8 and 32.
-- Batch 32 measured about 1.79 images/second over a 64-image smoke run.
+- Batch 32 processed all 5,568 keyframe-camera images at 28.42 images/second
+  after model initialization.
 - Resume test skipped 64 of 64 existing rows with zero duplicates.
 - End-to-end launcher test produced predictions and Label Studio tasks with
   zero failures.
 - Full fold-0 model evaluation: mAP50:95 0.126 and mAP50 0.246.
 
-At the measured throughput, all 5,568 reviewed keyframe-camera images take
-roughly 52 minutes. Hardware load and disk cache can change this estimate.
+The full 5,568-image run completed in 195.9 seconds after model initialization,
+or about 3 minutes 16 seconds. Hardware load and disk cache can change this
+estimate; short smoke runs understate steady-state throughput.
 
 ## Quality Boundary
 
@@ -70,6 +72,12 @@ automatic-label acceptance model. Fold 0 measured good relative performance
 for `Truck` but weak `Excavator`, `Sign`, and small-object performance. Three
 classes are absent from that validation sequence and therefore not evaluable
 on the fold.
+
+At the default 0.2 score threshold, fold-0 class-aware matching measured 29.0%
+precision and 36.5% recall overall. `Truck` measured 84.7% precision and 58.2%
+recall, while `Excavator` and `Sign` remained inadequate. Lowering the threshold
+increases candidate recall and deletion work; raising it reduces false boxes
+but increases manual drawing.
 
 Every V1 box requires human review. RTMDet-S, five-fold evaluation, threshold
 calibration, RF-DETR, and ByteTrack remain V1.1 work and must not be implied by

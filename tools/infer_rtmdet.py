@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,29 @@ def _rows(path: Path, include_context: bool) -> list[dict[str, Any]]:
     )
 
 
+def _output_stats(path: Path) -> dict[str, Any]:
+    image_ids: list[str] = []
+    class_counts: Counter[str] = Counter()
+    empty_images = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        image_ids.append(str(row["image_id"]))
+        detections = row.get("detections", [])
+        if not detections:
+            empty_images += 1
+        class_counts.update(str(item["label"]) for item in detections)
+    return {
+        "output_rows": len(image_ids),
+        "unique_image_ids": len(set(image_ids)),
+        "duplicate_image_ids": len(image_ids) - len(set(image_ids)),
+        "detection_boxes": sum(class_counts.values()),
+        "empty_images": empty_images,
+        "class_counts": dict(sorted(class_counts.items())),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run auditable RTMDet batch inference")
     parser.add_argument("config", type=Path)
@@ -43,7 +67,23 @@ def main() -> None:
     parser.add_argument("dataset_root", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--score-threshold", type=float, default=0.1)
+    parser.add_argument("--score-threshold", type=float, default=0.2)
+    parser.add_argument(
+        "--cross-class-nms-iou",
+        type=float,
+        help="Suppress overlapping boxes with different labels; disabled when omitted",
+    )
+    parser.add_argument(
+        "--watertruck-min-score",
+        type=float,
+        help="Below this score, relabel ambiguous WaterTruck predictions as Truck",
+    )
+    parser.add_argument(
+        "--watertruck-ambiguity-margin",
+        type=float,
+        default=0.0,
+        help="WaterTruck must beat an overlapping class by this score margin",
+    )
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--model-version")
     parser.add_argument("--include-context", action="store_true")
@@ -58,6 +98,9 @@ def main() -> None:
         dataset_manifest_id=manifest_id,
         device=args.device,
         score_threshold=args.score_threshold,
+        cross_class_nms_iou=args.cross_class_nms_iou,
+        watertruck_min_score=args.watertruck_min_score,
+        watertruck_ambiguity_margin=args.watertruck_ambiguity_margin,
         model_version=args.model_version,
     )
     rows = _rows(args.manifest, args.include_context)
@@ -90,6 +133,12 @@ def main() -> None:
             "dataset_manifest_id": prediction.dataset_manifest_id,
             "source": prediction.source,
             "review_status": prediction.review_status,
+            "postprocess": {
+                "score_threshold": detector.score_threshold,
+                "cross_class_nms_iou": detector.cross_class_nms_iou,
+                "watertruck_min_score": detector.watertruck_min_score,
+                "watertruck_ambiguity_margin": detector.watertruck_ambiguity_margin,
+            },
             "detections": [
                 {
                     "label": box.label,
@@ -97,6 +146,16 @@ def main() -> None:
                     "bbox_xyxy": [box.x1, box.y1, box.x2, box.y2],
                     "source": prediction.source,
                     "review_status": prediction.review_status,
+                    **(
+                        {"raw_label": box.raw_label}
+                        if box.raw_label is not None
+                        else {}
+                    ),
+                    **(
+                        {"postprocess_reason": box.postprocess_reason}
+                        if box.postprocess_reason is not None
+                        else {}
+                    ),
                 }
                 for box in prediction.boxes
             ],
@@ -137,6 +196,9 @@ def main() -> None:
         "dataset_manifest_id": manifest_id,
         "model_version": detector.model_version,
         "score_threshold": args.score_threshold,
+        "cross_class_nms_iou": args.cross_class_nms_iou,
+        "watertruck_min_score": args.watertruck_min_score,
+        "watertruck_ambiguity_margin": args.watertruck_ambiguity_margin,
         "batch_size": args.batch_size,
         "selected_images": len(rows),
         "processed": processed,
@@ -145,6 +207,7 @@ def main() -> None:
         "elapsed_seconds": elapsed,
         "processed_fps": processed / elapsed if elapsed else 0.0,
     }
+    run.update(_output_stats(args.output))
     run_path = args.output.with_suffix(args.output.suffix + ".run.json")
     run_path.write_text(
         json.dumps(run, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

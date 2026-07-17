@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from car5_autolabel.detectors.base import Detector
+from car5_autolabel.postprocessing import (
+    apply_mining_label_policy,
+    suppress_cross_class_overlaps,
+)
 from car5_autolabel.schemas import BoundingBox, ImagePrediction
 
 ACTIVE_CLASS_NAMES = ("Car", "Truck", "Bulldozer", "Excavator", "WaterTruck", "Sign")
@@ -27,6 +31,9 @@ def instances_to_boxes(
     width: int,
     height: int,
     score_threshold: float,
+    cross_class_nms_iou: float | None = None,
+    watertruck_min_score: float | None = None,
+    watertruck_ambiguity_margin: float = 0.0,
     class_names: Sequence[str] = ACTIVE_CLASS_NAMES,
 ) -> list[BoundingBox]:
     """Convert model arrays to clipped, deterministic internal pixel boxes."""
@@ -60,9 +67,14 @@ def instances_to_boxes(
                 score=score,
             )
         )
-    return sorted(
+    deduplicated = suppress_cross_class_overlaps(
         converted,
-        key=lambda box: (-box.score, box.label, box.x1, box.y1, box.x2, box.y2),
+        iou_threshold=cross_class_nms_iou,
+        watertruck_ambiguity_margin=watertruck_ambiguity_margin,
+    )
+    return apply_mining_label_policy(
+        deduplicated,
+        watertruck_min_score=watertruck_min_score,
     )
 
 
@@ -77,6 +89,9 @@ class RTMDetDetector(Detector):
         dataset_manifest_id: str,
         device: str = "cuda:0",
         score_threshold: float = 0.1,
+        cross_class_nms_iou: float | None = None,
+        watertruck_min_score: float | None = None,
+        watertruck_ambiguity_margin: float = 0.0,
         model_version: str | None = None,
     ) -> None:
         if not 0 <= score_threshold <= 1:
@@ -86,6 +101,9 @@ class RTMDetDetector(Detector):
         self.dataset_manifest_id = dataset_manifest_id
         self.device = device
         self.score_threshold = score_threshold
+        self.cross_class_nms_iou = cross_class_nms_iou
+        self.watertruck_min_score = watertruck_min_score
+        self.watertruck_ambiguity_margin = watertruck_ambiguity_margin
         self._model_version = model_version or self.checkpoint_path.stem
         self.config_sha256 = sha256_file(self.config_path)
         self.checkpoint_sha256 = sha256_file(self.checkpoint_path)
@@ -150,6 +168,9 @@ class RTMDetDetector(Detector):
                 width=width,
                 height=height,
                 score_threshold=self.score_threshold,
+                cross_class_nms_iou=self.cross_class_nms_iou,
+                watertruck_min_score=self.watertruck_min_score,
+                watertruck_ambiguity_margin=self.watertruck_ambiguity_margin,
             )
             predictions.append(
                 ImagePrediction(

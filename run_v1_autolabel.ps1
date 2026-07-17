@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DatasetRoot,
     [string]$Output = ".\artifacts\v1_predictions\predictions.jsonl",
-    [double]$ScoreThreshold = 0.1,
+    [double]$ScoreThreshold = 0.2,
     [int]$BatchSize = 32,
     [int]$Limit = 0
 )
