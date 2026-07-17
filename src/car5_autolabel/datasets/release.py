@@ -3,12 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from car5_autolabel.datasets.models import ACTIVE_CLASSES, ManifestRow, ReviewedTask
-
+from car5_autolabel.datasets.models import ManifestRow, ReviewedTask
 
 CATEGORY_NAMES = {
     0: "Car",
@@ -140,9 +138,7 @@ def build_coco_release(
             dataset_id=dataset_id,
             split_name=f"fold_{fold_index}_validation_{validation_sequence}",
         )
-        files[f"fold_{fold_index}/train.json"] = _write_json(
-            train_payload, fold_dir / "train.json"
-        )
+        files[f"fold_{fold_index}/train.json"] = _write_json(train_payload, fold_dir / "train.json")
         files[f"fold_{fold_index}/validation.json"] = _write_json(
             validation_payload, fold_dir / "validation.json"
         )

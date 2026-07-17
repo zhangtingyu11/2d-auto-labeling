@@ -25,6 +25,5 @@ def box_to_label_studio(box: BoundingBox, width: int, height: int) -> dict:
 
 def prediction_to_label_studio(prediction: ImagePrediction) -> list[dict]:
     return [
-        box_to_label_studio(box, prediction.width, prediction.height)
-        for box in prediction.boxes
+        box_to_label_studio(box, prediction.width, prediction.height) for box in prediction.boxes
     ]

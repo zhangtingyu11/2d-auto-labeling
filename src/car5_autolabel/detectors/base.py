@@ -11,6 +11,7 @@ class Detector(ABC):
     @abstractmethod
     def model_version(self) -> str:
         raise NotImplementedError
+
     @abstractmethod
     def predict(self, image_path: Path) -> ImagePrediction:
         raise NotImplementedError

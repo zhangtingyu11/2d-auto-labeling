@@ -3,9 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 
 import cv2
 
@@ -14,7 +15,6 @@ from car5_autolabel.datasets.label_studio_export import (
     parse_label_studio_export,
 )
 from car5_autolabel.datasets.models import CAMERA_ORDER, ManifestRow, ValidationReport
-
 
 HashScope = Literal["none", "keyframes", "all"]
 DimensionScope = Literal["none", "sample", "keyframes", "all"]
@@ -52,7 +52,9 @@ def _write_jsonl(rows: Iterable[ManifestRow], path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("w", encoding="utf-8", newline="\n") as stream:
         for row in rows:
-            line = json.dumps(row.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            line = json.dumps(
+                row.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
             encoded = (line + "\n").encode()
             digest.update(encoded)
             stream.write(line + "\n")
@@ -124,11 +126,15 @@ def build_manifest(
 
     unknown_keyframes = sorted(keyframe_set - canonical_set)
     if unknown_keyframes:
-        report.errors.append(f"{len(unknown_keyframes)} label stems are absent from the camera stream")
+        report.errors.append(
+            f"{len(unknown_keyframes)} label stems are absent from the camera stream"
+        )
 
     sequence_ids = _sequence_ids(canonical_stems, sequence_gap_seconds)
     sequence_counts = Counter(
-        sequence_id for stem, sequence_id in zip(canonical_stems, sequence_ids, strict=True) if stem in keyframe_set
+        sequence_id
+        for stem, sequence_id in zip(canonical_stems, sequence_ids, strict=True)
+        if stem in keyframe_set
     )
     report.sequence_counts = dict(sorted(sequence_counts.items()))
 
@@ -140,7 +146,8 @@ def build_manifest(
             report.reviewed_box_counts = export_summary["box_counts"]
             if report.export_duplicate_keys:
                 report.errors.append(
-                    f"Label Studio export has {len(report.export_duplicate_keys)} duplicate task keys"
+                    "Label Studio export has "
+                    f"{len(report.export_duplicate_keys)} duplicate task keys"
                 )
         except LabelStudioExportError as exc:
             report.errors.append(f"Label Studio export is invalid: {exc}")
@@ -156,11 +163,13 @@ def build_manifest(
         )
         if report.export_missing_keys:
             report.errors.append(
-                f"Label Studio export is missing {len(report.export_missing_keys)} keyframe-camera tasks"
+                "Label Studio export is missing "
+                f"{len(report.export_missing_keys)} keyframe-camera tasks"
             )
         if report.export_extra_keys:
             report.errors.append(
-                f"Label Studio export has {len(report.export_extra_keys)} tasks outside the supervised set"
+                "Label Studio export has "
+                f"{len(report.export_extra_keys)} tasks outside the supervised set"
             )
 
     should_hash = {

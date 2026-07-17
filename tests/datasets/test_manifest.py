@@ -7,7 +7,6 @@ import pytest
 
 from car5_autolabel.datasets.manifest import build_manifest
 
-
 CAMERAS = ("front", "front_left", "front_right", "back", "back_left", "back_right")
 
 
