@@ -5,8 +5,9 @@ Research date: 2026-07-16
 ## Scope
 
 The target is a self-hosted, pure 2D bounding-box auto-labeling system for the
-car5 dataset. The expected complete set is 928 timestamps and six cameras,
-which should produce 5,568 images when every camera is present. The ingestion
+car5 supervised keyframe set. The verified set is 928 timestamps and six
+cameras, producing 5,568 reviewed images. The source also contains 4,640
+high-rate frames per camera; non-keyframes are temporal context in v1. Ingestion
 validator must verify that count rather than assume it.
 
 The production workstation is an NVIDIA RTX 4060. VRAM must be detected at
@@ -17,8 +18,8 @@ existing Label Studio workflow.
 ## Evaluation Principles
 
 A model is not selected from public COCO results alone. Each candidate must be
-trained and evaluated on one immutable car5 split using the same annotation
-policy, image set, hardware, precision mode, and timing method.
+trained and evaluated on the same five natural-sequence folds using the same
+annotation policy, image set, hardware, precision mode, and timing method.
 
 The decision order is:
 
@@ -33,7 +34,7 @@ The decision order is:
 | Candidate | Strengths | Risks | Project decision |
 | --- | --- | --- | --- |
 | MMDetection RTMDet-S/M | Mature OpenMMLab stack, Apache 2.0, strong real-time trade-off, official MMDetection plus Label Studio example, familiar to the team | Older dependency stack and MMCV/CUDA compatibility need a pinned image | Primary baseline and first complete pipeline |
-| RF-DETR-S/M | Modern DETR family, strong published accuracy/latency trade-off, simple fine-tuning API, active 2026 releases, Apache-designated package and weights | Faster-moving package, recent breaking changes, custom-domain and RTX 4060 behavior must be proven locally | Accuracy challenger; promote only after the same-split gate |
+| RF-DETR-S/M | Modern DETR family, strong published accuracy/latency trade-off, simple fine-tuning API, active 2026 releases, Apache-designated package and weights | Faster-moving package, recent breaking changes, custom-domain and RTX 4060 behavior must be proven locally | Accuracy challenger; promote only after the same-fold gate |
 | Ultralytics YOLO26-S/M | Excellent developer experience, export tooling, built-in BoT-SORT/ByteTrack, strong speed | AGPL-3.0 or Enterprise licensing; company distribution/service use needs an approved license | Optional speed benchmark only; not a default dependency |
 | PaddleDetection RT-DETR-R18/R50 | Official end-to-end real-time DETR, TensorRT path, mature published benchmark | Adds Paddle as a second training/deployment ecosystem and increases maintenance | Reference fallback, not phase-one implementation |
 | DINO/Co-DETR teacher | High offline accuracy and useful disagreement signal | Slow and memory-heavy on an RTX 4060 | Optional offline teacher after baseline |
@@ -45,7 +46,7 @@ objects missed by a closed-set detector. SAM 2.1 supports prompted image masks
 and propagation through video frames. Grounded-SAM-2 combines open-vocabulary
 detection and temporal mask propagation.
 
-These models are not the production source of truth for the eight car5
+These models are not the production source of truth for the six active car5
 classes. They are used for:
 
 - cold-start proposals for rare classes;
@@ -53,9 +54,9 @@ classes. They are used for:
 - finding likely missing annotations;
 - optional mask-to-box propagation through short, continuous sequences.
 
-Open-vocabulary class ambiguity is expected for `Truck`, `WaterTruck`, and
-`BoxTruck`. Their outputs must remain review candidates until measured on the
-car5 gold set.
+Open-vocabulary class ambiguity is expected for `Truck` and `WaterTruck`.
+Inactive candidate classes such as `BoxTruck` must not be promoted from teacher
+output alone. All teacher outputs remain review candidates.
 
 ## Tracking Candidates
 
@@ -95,8 +96,9 @@ machine-readable reports without requiring FiftyOne.
 
 ## Final Recommendation
 
-1. Build a complete RTMDet-M baseline through MMDetection and Label Studio.
-2. In parallel, benchmark RF-DETR-S/M on the identical split.
+1. Build a complete RTMDet-S baseline through MMDetection and Label Studio,
+   then test RTMDet-M after the 8 GiB memory profile is stable.
+2. In parallel, benchmark RF-DETR-S/M on the identical folds.
 3. Select the production detector using the project acceptance scorecard.
 4. Add ByteTrack and temporal consensus after the single-frame baseline is
    trustworthy.

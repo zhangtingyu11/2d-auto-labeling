@@ -6,7 +6,7 @@ Collaborative 2D image auto-labeling service for the car5 six-camera dataset.
 
 - Run detector inference over single images or ordered camera sequences.
 - Send pre-annotations to Label Studio for human correction.
-- Keep a stable eight-class annotation schema.
+- Keep a stable six-class v1 schema and version candidate-class promotion.
 - Export reviewed annotations for training and evaluation.
 - Add temporal propagation and tracking without coupling them to one detector.
 
@@ -54,7 +54,12 @@ implementation milestone is documented in `docs/roadmap.md`.
 ## Technical Direction
 
 - Detailed route: `docs/technical-route.md`
+- Accepted decisions: `docs/decisions/`
+- Verified data audit: `docs/audits/2026-07-16-car5-v1-data-audit.md`
+- Evaluation policy: `docs/evaluation-policy.md`
+- Label Studio contract: `docs/label-studio-contract.md`
+- Review resolution: `docs/reviews/technical-route-review-resolution.md`
 - Mainstream solution research: `docs/research/2026-07-2d-autolabeling-landscape.md`
 - Shared work packages: `docs/work-packages.md`
 - Agent working agreement: `AGENTS.md`
-- Colleague review prompt: `docs/agent-prompts/colleague-route-review.md`
+- Colleague WP-02 prompt: `docs/agent-prompts/colleague-wp02-annotation-policy.md`

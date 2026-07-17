@@ -13,11 +13,14 @@ milestone summary.
 
 ## Milestone 1 - Detector Baseline
 
-- Independent technical-route review
+- Independent technical-route review (complete)
+- Build the exact 5,568-keyframe manifest and retain high-rate frames as
+  temporal context
 - Freeze annotation policy and double-reviewed gold set
 - Convert reviewed car5 boxes into a training format
-- Create leakage-safe train/validation/test splits by time sequence
-- Benchmark RTMDet and RF-DETR on one frozen split
+- Create five natural-sequence development folds and leakage reports
+- Benchmark RTMDet and RF-DETR on identical folds
+- Collect an independent day/route before production automatic acceptance
 - Export confidence-calibrated Label Studio predictions
 
 ## Milestone 2 - Human-in-the-Loop

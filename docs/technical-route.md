@@ -1,6 +1,15 @@
 # Technical Route for the car5 2D Auto-Labeling Tool
 
-Status: proposed on `main`, pending independent colleague review
+Status: accepted with v1 controls after independent review `52d1561`
+
+Binding decisions and gates:
+
+- `docs/decisions/0001-v1-data-scope.md`
+- `docs/decisions/0002-v1-taxonomy.md`
+- `docs/decisions/0003-camera-order.md`
+- `docs/decisions/0004-v1-split-and-release-policy.md`
+- `docs/evaluation-policy.md`
+- `docs/label-studio-contract.md`
 
 ## 1. Product Goal
 
@@ -13,7 +22,7 @@ The system optimizes total labeling cost, not detector FPS alone.
 
 ## 2. Classes and Domain Rules
 
-The canonical class order is:
+The active v1 class order is:
 
 1. `Car`
 2. `Truck`
@@ -21,11 +30,11 @@ The canonical class order is:
 4. `Excavator`
 5. `WaterTruck`
 6. `Sign`
-7. `Pedestrian`
-8. `BoxTruck`
 
-Class IDs are immutable after the first released dataset manifest. Display
-names may change only through an explicit migration.
+`Pedestrian` and `BoxTruck` are inactive candidates because the reviewed v1
+export has no positive boxes for them. They require a taxonomy-version
+migration and reviewed positive data before promotion. Class IDs are immutable
+inside a released taxonomy. See ADR 0002 for visual decision rules.
 
 Each camera has a versioned configuration containing:
 
@@ -49,6 +58,7 @@ identifiable. This distinction is represented by camera ignore polygons and a
 - No unreviewed foundation-model output treated as ground truth.
 - No model weights, raw images, private exports, or credentials in Git.
 - No automatic relabeling of historical data without a versioned migration.
+- No automatic acceptance of boxes in the first product release.
 
 ## 4. Canonical Data Contract
 
@@ -65,10 +75,15 @@ width
 height
 sequence_id
 frame_id
-timestamp
+capture_timestamp
+raw_sequence_index
+keyframe_id (nullable)
+is_keyframe
+sync_delta_ms
 camera_id
 camera_order
-split
+fold_id
+annotation_status
 ```
 
 Requirements:
@@ -79,6 +94,10 @@ Requirements:
 - Duplicate paths, hashes, IDs, frame-camera pairs, and missing images fail
   validation.
 - A report states expected and actual camera coverage for every timestamp.
+- The supervised v1 population is 928 exact-match keyframes by six cameras,
+  for 5,568 reviewed images.
+- The remaining high-rate camera images are `temporal_context`, never ground
+  truth or implicit negative examples.
 
 ### 4.2 Annotation Format
 
@@ -129,20 +148,23 @@ Each dataset release has:
 Raw assets and annotation exports remain in approved external storage. Git
 stores schemas, converters, configs, checksums, and sanitized reports.
 
-## 5. Leakage-Safe Split
+## 5. Leakage-Safe Development Evaluation
 
-Do not randomly split images. Adjacent frames and six simultaneous camera views
-are highly correlated.
+Do not randomly split images. Adjacent frames, six simultaneous views, and
+long-lived source objects are highly correlated.
 
-1. Build `sequence_id` from timestamp gaps and route/scene boundaries.
-2. Assign whole sequence blocks to train, validation, or test.
-3. Keep all cameras from a timestamp in the same split.
-4. Add a temporal exclusion gap between split boundaries.
-5. Freeze the test set before model comparison.
+The verified timestamp gaps define five natural sequences. Use five
+leave-one-sequence-out development folds:
 
-Initial target proportions are 70/15/15 by timestamp, adjusted to preserve rare
-class examples. A final split report must include class, camera, box-size,
-occlusion, and truncation distributions.
+1. keep all six cameras from a timestamp in the same fold;
+2. keep non-keyframe context with its enclosing sequence;
+3. reset tracking at every natural sequence boundary;
+4. report near duplicates and persistent source object IDs across folds;
+5. mark a class `not_evaluable` when either fold side lacks support;
+6. compare every detector on identical folds and evaluator code.
+
+This one-day collection has no valid independent production test. A second
+day, route, or site is required before automatic acceptance. See ADR 0004.
 
 ## 6. End-to-End Architecture
 
@@ -177,10 +199,11 @@ interfaces. A detector replacement must not change data or review semantics.
 
 Implement RTMDet through MMDetection first.
 
-- Start with RTMDet-M pretrained on COCO.
-- Run RTMDet-S if memory or training time is unacceptable.
+- Start with RTMDet-S pretrained on COCO at long side 640 with AMP.
+- Increase to 768 after the first stable memory and throughput profile.
+- Run RTMDet-M only after RTMDet-S establishes the safe micro-batch.
 - Preserve aspect ratio and pad; do not stretch six-camera images.
-- Benchmark long-side sizes 768 and 960 before enabling tiling.
+- Treat long side 960 and tiling as measured options, not defaults.
 - Use automatic mixed precision.
 - Probe maximum safe micro-batch, then use gradient accumulation for an
   effective batch near 16.
@@ -216,8 +239,9 @@ Enterprise license.
 
 ### 7.4 Detector Selection Gate
 
-The winner is selected on the frozen car5 test set. Public COCO AP is not a
-selection gate.
+The development winner is selected over the five identical sequence folds and
+human-correction pilot. Public COCO AP is not a selection gate. Promotion to
+automatic acceptance additionally requires an independent frozen collection.
 
 Required comparison:
 
@@ -285,7 +309,10 @@ improves correction time enough to justify GPU cost.
 
 ## 10. Foundation-Model Teacher
 
-Grounding DINO uses prompts and synonyms for the eight classes to produce an
+offline proposal set. Grounded-SAM-2 may refine proposals or propagate masks.
+Grounding DINO uses prompts and synonyms for the six active classes to produce
+an offline proposal set. Grounded-SAM-2 may refine proposals or propagate
+masks.
 offline proposal set. Grounded-SAM-2 may refine proposals or propagate masks.
 
 Teacher outputs are used for disagreement mining:
@@ -313,13 +340,14 @@ Use three policy bands:
 3. `manual_search`: low detector confidence but teacher/track evidence, or a
    safety-critical slice with uncertain absence.
 
-No class-camera pair is enabled for automatic acceptance until the frozen gold
-set demonstrates at least 98% precision and the lower confidence bound is
-acceptable. Rare classes remain review-only when evidence is insufficient.
+In the first release, `auto_accept_candidate` is an audit label only and still
+requires human submission. Later eligibility requires an independent frozen
+collection, at least 98% precision, and a 95% Wilson lower confidence bound of
+at least 98% for the exact class-camera-size slice. Rare and unsupported slices
+remain review-only.
 
-For `Pedestrian`, optimize a low review threshold for recall. Never infer that
-an image is empty solely because the detector returned no boxes until the
-absence policy is separately validated.
+Never infer that an image is empty solely because the detector returned no
+boxes until the absence policy is separately validated.
 
 ## 12. Active Learning
 
@@ -438,10 +466,11 @@ tools/                      reproducible CLI entry points
 
 ### Model gates
 
-- Review-threshold recall target at least 95% overall on the gold set.
-- High-confidence candidate precision target at least 98% for enabled slices.
-- No critical class-camera slice hidden by aggregate metrics.
-- No promoted model that regresses a class by more than the agreed tolerance.
+- Apply the matching, support, confidence, and regression rules in
+  `docs/evaluation-policy.md`.
+- Review-threshold recall target at least 95% overall on supported gold slices.
+- No class-camera slice hidden by aggregate metrics.
+- No automatic acceptance in the first release.
 
 ### Efficiency gates
 
@@ -487,8 +516,9 @@ evaluation.
 
 ### Phase 4: human-in-the-loop cycle
 
-Add calibration, triage, active learning, audit reports, and controlled
-automatic acceptance.
+Add calibration, triage, active learning, and audit reports. Collect independent
+acceptance data; keep automatic acceptance disabled until its separate gate
+passes.
 
 ### Phase 5: operational service
 
@@ -514,7 +544,7 @@ The approved starting route is:
 
 ```text
 MMDetection RTMDet baseline
-        + RF-DETR same-split challenger
+        + RF-DETR same-fold challenger
         + ByteTrack per-camera temporal refinement
         + Grounding DINO/SAM 2.1 offline disagreement teacher
         + calibrated policy engine
@@ -522,5 +552,6 @@ MMDetection RTMDet baseline
         + active-learning feedback loop
 ```
 
-Implementation begins only after the colleague review is merged or its issues
-are explicitly resolved on `main`.
+The independent review is merged. WP-01 and WP-02 now proceed in parallel.
+Detector training remains blocked until the data validator, annotation policy,
+gold-set protocol, evaluator contract, and Label Studio round-trip fixture pass.
