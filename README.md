@@ -1,4 +1,4 @@
-# car5 2D Auto Labeling
+# 2D Auto Labeling
 
 Collaborative 2D image auto-labeling service for the car5 six-camera dataset.
 
