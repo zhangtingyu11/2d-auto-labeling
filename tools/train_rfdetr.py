@@ -32,7 +32,7 @@ MINING_DAY_AUGMENTATIONS: dict[str, dict[str, Any]] = {
 # The verified RF-DETR workstation environment still uses Python 3.10, where
 # ``datetime.UTC`` is unavailable. Keep this alias until that runtime is
 # upgraded to the repository's Python 3.11 target.
-UTC = timezone.utc
+UTC = timezone.utc  # noqa: UP017 - required by the verified Python 3.10 runtime
 
 
 def dump_json(path: Path, value: Any) -> None:
