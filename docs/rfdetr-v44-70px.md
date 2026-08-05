@@ -19,6 +19,22 @@ The verified workstation used `rfdetr==1.8.3`. The model registry metadata and
 checkpoint SHA-256 are in
 `configs/models/rfdetr/mining8_v44_70px.json`.
 
+## Build an Internal Handoff Archive
+
+The checkpoint must not be committed to Git. Build a company-internal transfer
+archive from the exact committed source plus the verified checkpoint:
+
+```bash
+python tools/package_rfdetr_handoff.py \
+  --checkpoint /models/checkpoint_best_total.pth \
+  --output /handoff/car5-rfdetr-v44-70px.zip
+```
+
+The command refuses a checkpoint whose SHA-256 differs from the model registry.
+The resulting ZIP includes the committed source, policies, documentation,
+weight, and `MODEL_RELEASE.json`; it includes no images or annotations. Transfer
+this ZIP only through a company-approved internal channel.
+
 ## Inference
 
 ```bash
@@ -58,5 +74,6 @@ calibration result as an independent final-test score.
 
 The Python entry points use CLI paths and run on Windows or Linux. Windows
 PowerShell launchers are optional workstation conveniences. For company Docker
-deployment, follow `docs/docker-deployment.md` and mount data and weights at
-runtime.
+deployment, build `Dockerfile.rfdetr`, follow `docs/docker-deployment.md`, and
+mount data and weights at runtime. The Docker image deliberately contains
+neither the checkpoint nor any company images.

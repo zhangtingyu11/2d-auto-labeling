@@ -1,0 +1,27 @@
+ARG BASE_IMAGE=pytorch/pytorch:2.12.0-cuda13.0-cudnn9-runtime
+FROM ${BASE_IMAGE}
+
+ARG RFD_DETR_VERSION=1.8.3
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1 \
+    RF_HOME=/cache/rf-home
+
+WORKDIR /workspace/car5-2d-auto-labeling
+
+COPY pyproject.toml README.md requirements-rfdetr.txt ./
+COPY src ./src
+RUN python -m pip install --upgrade pip && \
+    python -m pip install . && \
+    python -m pip install "rfdetr==${RFD_DETR_VERSION}" "pycocotools>=2.0.10,<3" && \
+    python -c "import rfdetr, torch; print('rfdetr/torch import OK:', torch.__version__)"
+
+COPY configs ./configs
+COPY docs ./docs
+COPY tools/infer_rfdetr_image_folder.py ./tools/infer_rfdetr_image_folder.py
+
+RUN mkdir -p /data/images /models /output /cache/rf-home && \
+    python tools/infer_rfdetr_image_folder.py --help >/dev/null
+
+ENTRYPOINT ["python", "tools/infer_rfdetr_image_folder.py"]
+CMD ["--help"]

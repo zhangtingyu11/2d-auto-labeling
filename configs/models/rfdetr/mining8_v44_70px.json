@@ -2,6 +2,12 @@
   "model_version": "mining8-v44-70px",
   "architecture": "RF-DETR-M",
   "rfdetr_version": "1.8.3",
+  "reference_environment": {
+    "python": "3.10",
+    "torch": "2.13.0+cu130",
+    "torchvision": "0.28.0+cu130",
+    "cuda_runtime": "13.0"
+  },
   "checkpoint_file": "checkpoint_best_total.pth",
   "checkpoint_sha256": "2496b05f6d763f2df3611331e89915bd241ae18678cc8431956d4bfb2260ef68",
   "checkpoint_in_git": false,
