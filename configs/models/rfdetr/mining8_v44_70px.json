@@ -1,0 +1,25 @@
+{
+  "model_version": "mining8-v44-70px",
+  "architecture": "RF-DETR-M",
+  "rfdetr_version": "1.8.3",
+  "checkpoint_file": "checkpoint_best_total.pth",
+  "checkpoint_sha256": "2496b05f6d763f2df3611331e89915bd241ae18678cc8431956d4bfb2260ef68",
+  "checkpoint_in_git": false,
+  "formal_minimum_long_side_px": 70,
+  "class_threshold_policy": "configs/policies/mining8_v44_class_thresholds_v1.json",
+  "annotation_policy": "configs/policies/annotation_v2_70px.json",
+  "classes": [
+    "Car",
+    "Truck",
+    "Bulldozer",
+    "Excavator",
+    "WaterTruck",
+    "Sign",
+    "Pedestrian"
+  ],
+  "limitations": [
+    "WaterTruck and Pedestrian remain review-only because current support is insufficient.",
+    "The 296-image strong-deduplication set was used for policy calibration and is not an untouched final test.",
+    "A second independent collection is required for an unbiased production acceptance claim."
+  ]
+}

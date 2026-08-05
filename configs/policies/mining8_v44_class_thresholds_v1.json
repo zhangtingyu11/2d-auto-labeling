@@ -1,0 +1,54 @@
+{
+  "release": "mining8-v44-cleaned-class-thresholds-v1",
+  "model": "rfdetr_m_training_v4_full1385_car6_cleaned_20260803",
+  "default_threshold": 0.5,
+  "class_thresholds": {
+    "Car": 0.54,
+    "Truck": 0.76,
+    "Bulldozer": 0.5,
+    "Excavator": 0.5,
+    "Sign": 0.5,
+    "Pedestrian": 0.5
+  },
+  "review_only_labels": {
+    "WaterTruck": {
+      "candidate_min_score": 0.5,
+      "reason": "rare class is uncalibrated and produced zero true positives on frozen720"
+    }
+  },
+  "selection": {
+    "method": "alternating 10-timestamp blocks within each source dataset",
+    "calibration_images": 390,
+    "holdout_images": 330,
+    "holdout_v42": {
+      "tp": 386,
+      "fp": 197,
+      "fn": 125,
+      "precision": 0.6620926243567753,
+      "recall": 0.7553816046966731,
+      "f1": 0.7056672760511883
+    },
+    "holdout_v44_before_thresholds": {
+      "tp": 396,
+      "fp": 236,
+      "fn": 115,
+      "precision": 0.6265822784810127,
+      "recall": 0.7749510763209393,
+      "f1": 0.6929133858267716
+    },
+    "holdout_v44_after_thresholds": {
+      "tp": 385,
+      "fp": 191,
+      "fn": 126,
+      "precision": 0.6684027777777778,
+      "recall": 0.7534246575342466,
+      "f1": 0.7083716651333947
+    },
+    "limitations": [
+      "This is a temporary internal calibration because no separate labeled calibration dataset is available.",
+      "The full frozen720 benchmark must not be reused to claim an unbiased final score after this selection.",
+      "WaterTruck candidates are routed to human review rather than silently discarded.",
+      "Excavator and Sign thresholds remain unchanged because tuned values did not generalize to the held-out time blocks."
+    ]
+  }
+}

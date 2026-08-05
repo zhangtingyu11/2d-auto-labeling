@@ -51,6 +51,13 @@ tests/                   Automated tests
 See `docs/collaboration.md` for the complete two-developer workflow. The first
 implementation milestone is documented in `docs/roadmap.md`.
 
+## Current RF-DETR Release
+
+The current mining operating point is RF-DETR-M V4.4 with a formal 70-pixel
+long-side policy. Source, model metadata, inference, evaluation, and Docker
+adaptation instructions are documented in `docs/rfdetr-v44-70px.md`. Model
+weights, company data, and generated results remain outside Git.
+
 ## Technical Direction
 
 - Detailed route: `docs/technical-route.md`

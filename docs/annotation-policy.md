@@ -2,7 +2,7 @@
 
 Status: implementation draft for double review
 
-Binding versions: `taxonomy_v1`, `annotation_v1`, `camera_policy_v1`
+Binding versions: `taxonomy_v1`, `annotation_v2_70px`, `camera_policy_v1`
 
 ## 1. Scope and Ground-Truth Principle
 
@@ -45,15 +45,19 @@ release.
 - Clip every box to the 1920 by 1080 image bounds.
 - A target continuing beyond the image boundary is retained and marked
   `truncated=true`.
-- The v1 consistency floor is 8 pixels in both width and height. A smaller
-  object is `too_small_for_consistent_label` and is not added to ground truth.
+- The formal consistency floor is a rounded longest visible side of 70 pixels
+  in the original 1920 by 1080 image: `max(round(width), round(height)) >= 70`.
+  A smaller object is `too_small_for_consistent_label` and is not added to
+  formal ground truth or formal prediction output.
 - Shadows, dust clouds, reflections, and projected 3D extents are not part of
   the box.
 
-The 8-pixel floor is a versioned consistency rule, not a claim that smaller
-objects are unimportant. Candidate models may still surface them for policy
-review; changing the floor requires a new annotation-policy version and a
-re-audit of existing labels.
+The 70-pixel floor is a versioned consistency rule, not a claim that smaller
+objects are unimportant. Candidate models may still surface them in a separate
+review-only queue. Model confidence, temporal evidence, truncation, or
+occlusion cannot silently override the formal ground-truth rule. Changing the
+floor requires a new annotation-policy version and a re-audit of existing
+labels.
 
 ## 4. Occlusion and Truncation
 

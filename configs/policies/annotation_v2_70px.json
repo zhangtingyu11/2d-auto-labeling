@@ -1,0 +1,21 @@
+{
+  "version": "annotation_v2_70px",
+  "coordinate_space": "original_image_pixels",
+  "formal_box_rule": {
+    "measurement": "rounded_long_side",
+    "minimum_long_side_px": 70,
+    "comparison": "greater_than_or_equal",
+    "applies_to_ground_truth": true,
+    "applies_to_formal_predictions": true
+  },
+  "below_threshold": {
+    "formal_ground_truth": false,
+    "formal_prediction": false,
+    "may_enter_review_only_queue": true,
+    "model_confidence_may_override_ground_truth_rule": false
+  },
+  "sign_reporting": {
+    "report_with_sign": true,
+    "report_without_sign": true
+  }
+}

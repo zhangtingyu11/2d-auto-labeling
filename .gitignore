@@ -39,6 +39,8 @@ __pycache__/
 htmlcov/
 .venv/
 .venv-train2d/
+.venv*/
+.pytest_tmp*/
 venv/
 
 # Downloaded upstream training source (pinned by setup documentation/config).
