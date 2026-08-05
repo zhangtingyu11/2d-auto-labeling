@@ -1,6 +1,6 @@
 # 2D Auto Labeling
 
-Collaborative 2D image auto-labeling service for the car5 six-camera dataset.
+Collaborative 2D image auto-labeling service for the car six-camera dataset.
 
 ## Goals
 
