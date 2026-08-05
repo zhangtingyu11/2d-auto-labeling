@@ -5,6 +5,7 @@
   "class_thresholds": {
     "Car": 0.54,
     "Truck": 0.76,
+    "BoxTruck": 0.5,
     "Bulldozer": 0.5,
     "Excavator": 0.5,
     "Sign": 0.5,
@@ -48,6 +49,7 @@
       "This is a temporary internal calibration because no separate labeled calibration dataset is available.",
       "The full frozen720 benchmark must not be reused to claim an unbiased final score after this selection.",
       "WaterTruck candidates are routed to human review rather than silently discarded.",
+      "BoxTruck uses the conservative default threshold pending independent calibration.",
       "Excavator and Sign thresholds remain unchanged because tuned values did not generalize to the held-out time blocks."
     ]
   }

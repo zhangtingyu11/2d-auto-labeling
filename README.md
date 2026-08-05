@@ -11,7 +11,7 @@ are the important implementation, not generated examples:
 | --- | --- | --- |
 | **1 - Core inference** | [`tools/infer_rfdetr_image_folder.py`](tools/infer_rfdetr_image_folder.py) | Loads the V4.4 checkpoint, runs an image folder, applies ROI/small-object handling, deduplication, class policy, and the 70 px export rule. |
 | **2 - Docker entry** | [`Dockerfile.rfdetr`](Dockerfile.rfdetr) | Reproducible Linux/GPU inference container. Build this file; mount weights and images at runtime. |
-| **3 - Model release** | [`configs/models/rfdetr/mining8_v44_70px.json`](configs/models/rfdetr/mining8_v44_70px.json) | Model identity, seven classes, checkpoint filename/SHA-256, environment, and 70 px operating point. |
+| **3 - Model release** | [`configs/models/rfdetr/mining8_v44_70px.json`](configs/models/rfdetr/mining8_v44_70px.json) | Model identity, eight classes, checkpoint filename/SHA-256, environment, and 70 px operating point. |
 | **4 - Thresholds** | [`configs/policies/mining8_v44_class_thresholds_v1.json`](configs/policies/mining8_v44_class_thresholds_v1.json) | Per-class confidence policy. |
 | **5 - Annotation rule** | [`configs/policies/annotation_v2_70px.json`](configs/policies/annotation_v2_70px.json) | Human-GT and evaluation size boundary. |
 | **6 - Core algorithms** | [`src/car5_autolabel/postprocessing.py`](src/car5_autolabel/postprocessing.py), [`src/car5_autolabel/roi_verification.py`](src/car5_autolabel/roi_verification.py), [`src/car5_autolabel/tiling.py`](src/car5_autolabel/tiling.py), [`src/car5_autolabel/policies/size.py`](src/car5_autolabel/policies/size.py) | Duplicate suppression, native-resolution ROI verification, tiled inference, and original-image size filtering. |

@@ -17,6 +17,7 @@
   "classes": [
     "Car",
     "Truck",
+    "BoxTruck",
     "Bulldozer",
     "Excavator",
     "WaterTruck",
@@ -24,7 +25,8 @@
     "Pedestrian"
   ],
   "limitations": [
-    "WaterTruck and Pedestrian remain review-only because current support is insufficient.",
+    "WaterTruck remains review-only because current support is insufficient.",
+    "BoxTruck uses a conservative default threshold pending independent calibration.",
     "The 296-image strong-deduplication set was used for policy calibration and is not an untouched final test.",
     "A second independent collection is required for an unbiased production acceptance claim."
   ]

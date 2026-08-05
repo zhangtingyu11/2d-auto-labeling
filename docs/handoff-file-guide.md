@@ -17,8 +17,8 @@
 | `MODEL_RELEASE.json` | **核心** | 本交接包版本、Git commit、权重 SHA-256、70px规则和生成时间。 |
 | `tools/infer_rfdetr_image_folder.py` | **核心** | V4.4 图片文件夹推理总入口。加载权重并串联小目标复核、去重、类别策略和70px过滤。 |
 | `Dockerfile.rfdetr` | **核心** | 构建 Linux/NVIDIA GPU 推理容器。权重和图片在运行时挂载。 |
-| `configs/models/rfdetr/mining8_v44_70px.json` | **核心** | 模型身份、7类顺序、权重文件名及哈希、参考环境和70px正式规则。 |
-| `configs/policies/mining8_v44_class_thresholds_v1.json` | **核心** | 7个类别各自采用的置信度阈值。 |
+| `configs/models/rfdetr/mining8_v44_70px.json` | **核心** | 模型身份、8类顺序、权重文件名及哈希、参考环境和70px正式规则。 |
+| `configs/policies/mining8_v44_class_thresholds_v1.json` | **核心** | 8个类别的正式阈值或人工复核策略。 |
 | `configs/policies/annotation_v2_70px.json` | **核心** | 人工真值和正式预测统一采用的70px标注边界。 |
 | `src/car5_autolabel/postprocessing.py` | **核心** | 同类重复框、跨类别重叠框和矿场类别规则的后处理。 |
 | `src/car5_autolabel/roi_verification.py` | **核心** | 对低置信度小目标回到原图局部区域再次确认。 |
