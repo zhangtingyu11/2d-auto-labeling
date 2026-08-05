@@ -16,7 +16,7 @@ are the important implementation, not generated examples:
 | **5 - Annotation rule** | [`configs/policies/annotation_v2_70px.json`](configs/policies/annotation_v2_70px.json) | Human-GT and evaluation size boundary. |
 | **6 - Core algorithms** | [`src/car5_autolabel/postprocessing.py`](src/car5_autolabel/postprocessing.py), [`src/car5_autolabel/roi_verification.py`](src/car5_autolabel/roi_verification.py), [`src/car5_autolabel/tiling.py`](src/car5_autolabel/tiling.py), [`src/car5_autolabel/policies/size.py`](src/car5_autolabel/policies/size.py) | Duplicate suppression, native-resolution ROI verification, tiled inference, and original-image size filtering. |
 | **7 - Training entry** | [`tools/train_rfdetr.py`](tools/train_rfdetr.py) | Cross-platform RF-DETR training CLI. |
-| **8 - Full instructions** | [`docs/rfdetr-v44-70px.md`](docs/rfdetr-v44-70px.md), [`docs/docker-deployment.md`](docs/docker-deployment.md) | Exact inference, evaluation, Docker, and handoff commands. |
+| **8 - Full instructions** | [`docs/rfdetr-v44-70px.md`](docs/rfdetr-v44-70px.md), [`docs/docker-deployment.md`](docs/docker-deployment.md), [`docs/handoff-file-guide.md`](docs/handoff-file-guide.md) | Exact inference, evaluation, Docker, handoff commands, and a file-by-file package guide. |
 
 To inspect or run all code from GitHub, clone the implementation branch rather
 than downloading individual files:
