@@ -8,7 +8,7 @@ import os
 import platform
 import sys
 import traceback
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,11 @@ MINING_DAY_AUGMENTATIONS: dict[str, dict[str, Any]] = {
     "GaussianBlur": {"blur_limit": 3, "p": 0.15},
     "GaussNoise": {"std_range": (0.01, 0.03), "p": 0.15},
 }
+
+# The verified RF-DETR workstation environment still uses Python 3.10, where
+# ``datetime.UTC`` is unavailable. Keep this alias until that runtime is
+# upgraded to the repository's Python 3.11 target.
+UTC = timezone.utc
 
 
 def dump_json(path: Path, value: Any) -> None:
