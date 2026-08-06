@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from car5_autolabel import __version__
 
+
 app = FastAPI(
     title="car5 2D Auto Labeling",
     version=__version__,
