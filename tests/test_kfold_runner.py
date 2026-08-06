@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 
 import pytest
 from pycocotools.coco import COCO
@@ -9,11 +10,45 @@ from pycocotools.coco import COCO
 from tools.audit_coco_predictions import coco_ap
 from tools.run_rfdetr_kfold_label_audit import (
     Source,
+    apply_smoke_defaults,
     docker_base,
+    parse_args,
     parse_source,
     prepare,
     stable_hash,
 )
+
+
+def test_parse_args_supports_isolated_single_fold_smoke(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "runner",
+            "--source",
+            "sample=annotations.json::images",
+            "--assignments",
+            "assignments.csv",
+            "--workspace",
+            "workspace",
+            "--only-fold",
+            "2",
+            "--smoke",
+        ],
+    )
+
+    args = parse_args()
+
+    assert args.only_fold == 2
+    assert args.smoke is True
+
+
+def test_smoke_mode_forces_one_epoch() -> None:
+    args = argparse.Namespace(smoke=True, epochs=80)
+
+    apply_smoke_defaults(args)
+
+    assert args.epochs == 1
 
 
 def test_parse_source_rejects_path_traversal_name(tmp_path) -> None:

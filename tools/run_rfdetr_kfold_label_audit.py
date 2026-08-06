@@ -58,6 +58,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--assignments", type=Path, required=True)
     parser.add_argument("--workspace", type=Path, required=True)
     parser.add_argument("--folds", type=int, default=5)
+    parser.add_argument(
+        "--only-fold",
+        type=int,
+        help="run one prepared fold and skip the combined OOF report",
+    )
     parser.add_argument("--minimum-long-side-px", type=int, default=70)
     parser.add_argument("--purge-seconds", type=float, default=3.0)
     parser.add_argument("--prepare-only", action="store_true")
@@ -66,6 +71,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default="medium")
     parser.add_argument("--taxonomy", default="car5-v1-six-class")
     parser.add_argument("--epochs", type=int, default=80)
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="pass the RF-DETR smoke mode to training and isolate its outputs",
+    )
     parser.add_argument("--early-stopping-patience", type=int, default=15)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum-steps", type=int, default=4)
@@ -466,7 +476,8 @@ def find_checkpoint(run_dir: Path) -> Path:
 
 def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
     fold_dataset = args.workspace / "folds" / f"fold_{fold}" / "dataset"
-    run_dir = args.workspace / "runs" / f"fold_{fold}"
+    runs_name = "runs_smoke" if args.smoke else "runs"
+    run_dir = args.workspace / runs_name / f"fold_{fold}"
     success = run_dir / "_SUCCESS.json"
     run_dir.mkdir(parents=True, exist_ok=True)
     cache = args.workspace / "cache" / "rf-home"
@@ -486,6 +497,7 @@ def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
         "grad_accum_steps": args.grad_accum_steps,
         "num_workers": args.num_workers,
         "early_stopping_patience": args.early_stopping_patience,
+        "smoke": args.smoke,
         "taxonomy": args.taxonomy,
         "data_manifest_id": args.data_manifest_id,
         "pretrain_sha256": (
@@ -560,6 +572,8 @@ def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
             )
             train = pretrain_base + train[len(train_base) :]
             train.extend(["--pretrain-weights", f"/pretrain/{train_mount.name}"])
+        if args.smoke:
+            train.append("--smoke")
         resumable = sorted(run_dir.rglob("checkpoint*.pth"), key=lambda path: path.stat().st_mtime)
         if resumable:
             resume = resumable[-1]
@@ -796,6 +810,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("invalid fold, size, or purge configuration")
     if args.idle_confirmations <= 0 or not 1 <= args.poll_seconds <= 60:
         raise ValueError("idle-confirmations must be positive and poll-seconds must be 1..60")
+    if args.only_fold is not None and not 0 <= args.only_fold < args.folds:
+        raise ValueError("only-fold must be within the configured fold range")
     if (
         args.epochs <= 0
         or args.batch_size <= 0
@@ -813,8 +829,16 @@ def validate_args(args: argparse.Namespace) -> None:
         raise FileNotFoundError(args.pretrain_weights)
 
 
+def apply_smoke_defaults(args: argparse.Namespace) -> None:
+    """Keep smoke runs bounded even though the trainer's flag does not cap epochs."""
+
+    if args.smoke:
+        args.epochs = 1
+
+
 def main() -> None:
     args = parse_args()
+    apply_smoke_defaults(args)
     validate_args(args)
     sources = [parse_source(value) for value in args.source]
     if len({source.name for source in sources}) != len(sources):
@@ -832,13 +856,25 @@ def main() -> None:
     if args.prepare_only:
         return
     repo_root = Path(__file__).resolve().parents[1]
-    for fold in range(args.folds):
+    selected_folds = range(args.folds) if args.only_fold is None else (args.only_fold,)
+    for fold in selected_folds:
         run_fold(args, fold, repo_root)
-    combine_oof_results(args, repo_root)
-    json_write(
-        args.workspace / "_ALL_SUCCESS.json",
-        {"folds": args.folds, "finished_at": datetime.now().isoformat()},
-    )
+    if args.only_fold is None:
+        combine_oof_results(args, repo_root)
+        json_write(
+            args.workspace / "_ALL_SUCCESS.json",
+            {"folds": args.folds, "finished_at": datetime.now().isoformat()},
+        )
+    else:
+        marker = "SMOKE" if args.smoke else "FOLD"
+        json_write(
+            args.workspace / f"_{marker}_{args.only_fold}_SUCCESS.json",
+            {
+                "fold": args.only_fold,
+                "smoke": args.smoke,
+                "finished_at": datetime.now().isoformat(),
+            },
+        )
 
 
 if __name__ == "__main__":
