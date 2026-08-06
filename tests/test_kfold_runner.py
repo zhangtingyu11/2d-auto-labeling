@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 from pycocotools.coco import COCO
@@ -31,6 +32,8 @@ def test_parse_args_supports_isolated_single_fold_smoke(monkeypatch) -> None:
             "assignments.csv",
             "--workspace",
             "workspace",
+            "--artifact-root",
+            "artifacts",
             "--only-fold",
             "2",
             "--smoke",
@@ -41,6 +44,7 @@ def test_parse_args_supports_isolated_single_fold_smoke(monkeypatch) -> None:
 
     assert args.only_fold == 2
     assert args.smoke is True
+    assert args.artifact_root == Path("artifacts")
 
 
 def test_smoke_mode_forces_one_epoch() -> None:
@@ -66,6 +70,8 @@ def test_docker_command_sets_host_user_and_optional_gpu(tmp_path) -> None:
 
     assert command[command.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
     assert command[command.index("--gpus") + 1] == "device=3"
+    assert f"USER={os.environ.get('USER') or f'uid-{os.getuid()}'}" in command
+    assert f"LOGNAME={os.environ.get('USER') or f'uid-{os.getuid()}'}" in command
     assert f"{tmp_path.resolve()}:/data:ro" in command
 
 

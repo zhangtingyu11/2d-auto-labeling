@@ -57,6 +57,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--assignments", type=Path, required=True)
     parser.add_argument("--workspace", type=Path, required=True)
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="write checkpoints and reports here while keeping prepared datasets in workspace",
+    )
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument(
         "--only-fold",
@@ -444,6 +449,7 @@ def docker_base(
     *,
     environment: dict[str, str] | None = None,
 ) -> list[str]:
+    container_user = os.environ.get("USER") or f"uid-{os.getuid()}"
     command = [
         "docker",
         "run",
@@ -456,7 +462,12 @@ def docker_base(
     ]
     if gpu is not None:
         command.extend(["--gpus", f"device={gpu}"])
-    for name, value in (environment or {}).items():
+    container_environment = {
+        "USER": container_user,
+        "LOGNAME": container_user,
+        **(environment or {}),
+    }
+    for name, value in container_environment.items():
         command.extend(["-e", f"{name}={value}"])
     for host, container, read_only in mounts:
         command.extend(["-v", f"{host.resolve()}:{container}{':ro' if read_only else ''}"])
@@ -477,10 +488,10 @@ def find_checkpoint(run_dir: Path) -> Path:
 def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
     fold_dataset = args.workspace / "folds" / f"fold_{fold}" / "dataset"
     runs_name = "runs_smoke" if args.smoke else "runs"
-    run_dir = args.workspace / runs_name / f"fold_{fold}"
+    run_dir = args.artifact_root / runs_name / f"fold_{fold}"
     success = run_dir / "_SUCCESS.json"
     run_dir.mkdir(parents=True, exist_ok=True)
-    cache = args.workspace / "cache" / "rf-home"
+    cache = args.artifact_root / "cache" / "rf-home"
     cache.mkdir(parents=True, exist_ok=True)
     mounts = [
         (fold_dataset, "/dataset", True),
@@ -731,7 +742,7 @@ def combine_oof_results(args: argparse.Namespace, repo_root: Path) -> None:
             / "_annotations.coco.json"
         )
         predictions_path = (
-            args.workspace / "runs" / f"fold_{fold}" / "oof_predictions_70px.coco.json"
+            args.artifact_root / "runs" / f"fold_{fold}" / "oof_predictions_70px.coco.json"
         )
         ground_truth = json.loads(ground_truth_path.read_text(encoding="utf-8"))
         fold_predictions = json.loads(predictions_path.read_text(encoding="utf-8"))
@@ -768,7 +779,7 @@ def combine_oof_results(args: argparse.Namespace, repo_root: Path) -> None:
                     "image_id": image_id_map[int(prediction["image_id"])],
                 }
             )
-    combined = args.workspace / "oof_combined"
+    combined = args.artifact_root / "oof_combined"
     json_write(
         combined / "ground_truth.coco.json",
         {
@@ -782,7 +793,7 @@ def combine_oof_results(args: argparse.Namespace, repo_root: Path) -> None:
     audit = docker_base(
         args,
         None,
-        [(args.workspace, "/audit-output", False), (repo_root, "/audit-code", True)],
+        [(args.artifact_root, "/audit-output", False), (repo_root, "/audit-code", True)],
         environment={"PYTHONPATH": "/audit-code/src"},
     )
     audit.extend(
@@ -845,6 +856,8 @@ def main() -> None:
         raise ValueError("source names must be unique")
     args.workspace = args.workspace.resolve()
     args.workspace.mkdir(parents=True, exist_ok=True)
+    args.artifact_root = (args.artifact_root or args.workspace).resolve()
+    args.artifact_root.mkdir(parents=True, exist_ok=True)
     lock_handle = (args.workspace / "runner.lock").open("w", encoding="utf-8")
     try:
         fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -862,13 +875,13 @@ def main() -> None:
     if args.only_fold is None:
         combine_oof_results(args, repo_root)
         json_write(
-            args.workspace / "_ALL_SUCCESS.json",
+            args.artifact_root / "_ALL_SUCCESS.json",
             {"folds": args.folds, "finished_at": datetime.now().isoformat()},
         )
     else:
         marker = "SMOKE" if args.smoke else "FOLD"
         json_write(
-            args.workspace / f"_{marker}_{args.only_fold}_SUCCESS.json",
+            args.artifact_root / f"_{marker}_{args.only_fold}_SUCCESS.json",
             {
                 "fold": args.only_fold,
                 "smoke": args.smoke,

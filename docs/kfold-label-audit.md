@@ -68,8 +68,9 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py \
   --source 'new151=/path/to/new151/instances_new151.coco.json::/path/to/new151' \
   --assignments /path/to/plan/assignments.csv \
   --workspace /path/to/kfold_workspace \
+  --artifact-root /path/to/local_artifacts \
   --only-fold 0 \
   --smoke
 ```
 
-smoke 模式强制训练 1 epoch，产物写入 `runs_smoke/fold_0/`，不会被完整训练误当作可续跑 checkpoint；单折模式也不会生成五折合并指标。
+smoke 模式强制训练 1 epoch，产物写入 `<artifact-root>/runs_smoke/fold_0/`，不会被完整训练误当作可续跑 checkpoint；单折模式也不会生成五折合并指标。数据可继续放在 NAS `workspace`，checkpoint 和指标建议写入支持普通文件时间戳操作的本地文件系统。
