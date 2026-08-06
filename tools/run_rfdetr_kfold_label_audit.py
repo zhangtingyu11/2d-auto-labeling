@@ -53,45 +53,135 @@ def parse_args() -> argparse.Namespace:
         action="append",
         required=True,
         metavar="NAME=COCO_JSON::IMAGE_ROOT",
-        help="repeat once per source package",
+        help=("input package in NAME=COCO_JSON::IMAGE_ROOT form; repeat once per package"),
     )
-    parser.add_argument("--assignments", type=Path, required=True)
-    parser.add_argument("--workspace", type=Path, required=True)
+    parser.add_argument(
+        "--assignments",
+        type=Path,
+        required=True,
+        help="CSV assigning each source image to validation_fold",
+    )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        required=True,
+        help="prepared fold datasets and runner lock; must share a filesystem with source images",
+    )
     parser.add_argument(
         "--artifact-root",
         type=Path,
-        help="write checkpoints and reports here while keeping prepared datasets in workspace",
+        help="write checkpoints and reports here; defaults to workspace",
     )
-    parser.add_argument("--folds", type=int, default=5)
+    parser.add_argument("--folds", type=int, default=5, help="number of folds (default: 5)")
     parser.add_argument(
         "--only-fold",
         type=int,
-        help="run one prepared fold and skip the combined OOF report",
+        help="zero-based fold to run; defaults to all folds and a combined OOF report",
     )
-    parser.add_argument("--minimum-long-side-px", type=int, default=70)
-    parser.add_argument("--purge-seconds", type=float, default=3.0)
-    parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--docker-image", default="car5-rfdetr:v4.4-70px-eval")
-    parser.add_argument("--pretrain-weights", type=Path)
-    parser.add_argument("--model", default="medium")
-    parser.add_argument("--taxonomy", default="car5-v1-six-class")
-    parser.add_argument("--epochs", type=int, default=80)
+    parser.add_argument(
+        "--minimum-long-side-px",
+        type=int,
+        default=70,
+        help="drop a whole frame if any GT long side is below this many pixels (default: 70)",
+    )
+    parser.add_argument(
+        "--purge-seconds",
+        type=float,
+        default=3.0,
+        help="exclude training frames within this many seconds of validation (default: 3.0)",
+    )
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="prepare and validate fold datasets, then exit without using Docker or a GPU",
+    )
+    parser.add_argument(
+        "--docker-image",
+        default="car5-rfdetr:v4.4-70px-eval",
+        help="RF-DETR training image name or digest (default: car5-rfdetr:v4.4-70px-eval)",
+    )
+    parser.add_argument(
+        "--pretrain-weights",
+        type=Path,
+        help="initial checkpoint unseen by audited images; defaults to model initialization",
+    )
+    parser.add_argument(
+        "--model", default="medium", help="RF-DETR model size passed to training (default: medium)"
+    )
+    parser.add_argument(
+        "--taxonomy",
+        default="car5-v1-six-class",
+        help="taxonomy version recorded in provenance (default: car5-v1-six-class)",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=80, help="maximum epochs per fold (default: 80)"
+    )
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="pass the RF-DETR smoke mode to training and isolate its outputs",
+        help="force one epoch and isolate outputs under runs_smoke",
     )
-    parser.add_argument("--early-stopping-patience", type=int, default=15)
-    parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--grad-accum-steps", type=int, default=4)
-    parser.add_argument("--num-workers", type=int, default=0)
-    parser.add_argument("--prediction-threshold", type=float, default=0.001)
-    parser.add_argument("--operating-score-threshold", type=float, default=0.20)
-    parser.add_argument("--gpu", type=int, action="append", dest="gpus")
-    parser.add_argument("--minimum-free-memory-mib", type=int, default=22000)
-    parser.add_argument("--maximum-gpu-utilization", type=int, default=5)
-    parser.add_argument("--idle-confirmations", type=int, default=3)
-    parser.add_argument("--poll-seconds", type=int, default=60)
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=15,
+        help="epochs without improvement before stopping (default: 15)",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=4, help="images per device step (default: 4)"
+    )
+    parser.add_argument(
+        "--grad-accum-steps",
+        type=int,
+        default=4,
+        help="device steps accumulated before an optimizer step (default: 4)",
+    )
+    parser.add_argument(
+        "--num-workers", type=int, default=0, help="training data-loader workers (default: 0)"
+    )
+    parser.add_argument(
+        "--prediction-threshold",
+        type=float,
+        default=0.001,
+        help="low inference score cutoff retained for COCO mAP curves (default: 0.001)",
+    )
+    parser.add_argument(
+        "--operating-score-threshold",
+        type=float,
+        default=0.20,
+        help="score cutoff used only for TP/FP/FN and error candidates (default: 0.20)",
+    )
+    parser.add_argument(
+        "--gpu",
+        type=int,
+        action="append",
+        dest="gpus",
+        help="allowed physical GPU index; repeat for more, or omit to allow all visible GPUs",
+    )
+    parser.add_argument(
+        "--minimum-free-memory-mib",
+        type=int,
+        default=22000,
+        help="minimum free memory required before acquiring a GPU (default: 22000 MiB)",
+    )
+    parser.add_argument(
+        "--maximum-gpu-utilization",
+        type=int,
+        default=5,
+        help="maximum utilization considered idle (default: 5 percent)",
+    )
+    parser.add_argument(
+        "--idle-confirmations",
+        type=int,
+        default=3,
+        help="consecutive idle checks required before a fold starts (default: 3)",
+    )
+    parser.add_argument(
+        "--poll-seconds",
+        type=int,
+        default=60,
+        help="seconds between GPU idle checks; allowed range 1-60 (default: 60)",
+    )
     return parser.parse_args()
 
 
