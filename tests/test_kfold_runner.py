@@ -112,12 +112,21 @@ def test_official_coco_ap_is_one_for_perfect_prediction(tmp_path) -> None:
 def test_prepare_purges_nearby_frames_across_cameras_and_checks_fingerprint(tmp_path) -> None:
     source_root = tmp_path / "source"
     source_root.mkdir()
-    for name in ("valid.jpg", "near.jpg", "far.jpg"):
+    for name in ("valid.jpg", "near.jpg", "far.jpg", "empty.jpg"):
         (source_root / name).write_bytes(b"image")
     categories = [
         {"id": index + 1, "name": name}
         for index, name in enumerate(
-            ("Car", "Truck", "Bulldozer", "Excavator", "WaterTruck", "Sign")
+            (
+                "Car",
+                "Truck",
+                "BoxTruck",
+                "Bulldozer",
+                "Excavator",
+                "WaterTruck",
+                "Sign",
+                "Pedestrian",
+            )
         )
     ]
     coco = {
@@ -125,9 +134,15 @@ def test_prepare_purges_nearby_frames_across_cameras_and_checks_fingerprint(tmp_
             {"id": 1, "file_name": "valid.jpg", "width": 100, "height": 100},
             {"id": 2, "file_name": "near.jpg", "width": 100, "height": 100},
             {"id": 3, "file_name": "far.jpg", "width": 100, "height": 100},
+            {"id": 4, "file_name": "empty.jpg", "width": 100, "height": 100},
         ],
         "annotations": [
-            {"id": index, "image_id": index, "category_id": 1, "bbox": [0, 0, 70, 70]}
+            {
+                "id": index,
+                "image_id": index,
+                "category_id": 1,
+                "bbox": [0, 0, 20, 20] if index == 1 else [0, 0, 70, 70],
+            }
             for index in range(1, 4)
         ],
         "categories": categories,
@@ -174,6 +189,14 @@ def test_prepare_purges_nearby_frames_across_cameras_and_checks_fingerprint(tmp_
                     "timestamp": "20260101_000010_000000",
                     "validation_fold": 1,
                 },
+                {
+                    "package": "source",
+                    "source_image_id": 4,
+                    "source_dataset": "route",
+                    "camera": "front",
+                    "timestamp": "20260101_000020_000000",
+                    "validation_fold": 0,
+                },
             ]
         )
     args = argparse.Namespace(
@@ -189,6 +212,16 @@ def test_prepare_purges_nearby_frames_across_cameras_and_checks_fingerprint(tmp_
 
     assert report["fold_reports"]["0"]["train"]["images"] == 1
     assert report["fold_reports"]["0"]["purged_near_validation"] == 1
+    assert report["eligible_images"] == 3
+    assert report["source_filter_reports"]["source"]["empty_frame_filter"] == {
+        "kept_images": 3,
+        "kept_boxes": 3,
+        "excluded_empty_images": 1,
+    }
+    valid = json.loads(
+        (args.workspace / "folds/fold_0/dataset/valid/_annotations.coco.json").read_text()
+    )
+    assert valid["annotations"][0]["bbox"] == [0, 0, 20, 20]
     prepared = json.loads(
         (args.workspace / "folds/fold_0/dataset/train/_annotations.coco.json").read_text()
     )

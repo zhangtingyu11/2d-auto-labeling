@@ -1,6 +1,6 @@
 # K 折标注审计
 
-`run_rfdetr_kfold_label_audit.py` 按既有 `validation_fold` 做 5 折 OOF：每折用 4 折训练、1 折验证，最后输出模型指标和疑似标注错误候选。它只审计 v1 六类，不是产品自动验收流程。
+`run_rfdetr_kfold_label_audit.py` 按既有 `validation_fold` 做 5 折 OOF：每折用 4 折训练、1 折验证，最后输出模型指标。训练使用人工标注中的 8 类：`Car`、`Truck`、`BoxTruck`、`Bulldozer`、`Excavator`、`WaterTruck`、`Sign`、`Pedestrian`。
 
 ## 一次准备
 
@@ -66,13 +66,13 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 | `--artifact-root PATH` | 默认等于 `workspace` | 保存 checkpoint、日志、预测和指标。可放在本地磁盘，即使 `workspace` 位于 NAS。 |
 | `--folds N` | `5` | 总折数；assignments 中的 `validation_fold` 必须在 `0..N-1`。 |
 | `--only-fold N` | 默认全部折 | 只运行指定的零基折号，不生成五折合并报告。常与 `--smoke` 一起使用。 |
-| `--minimum-long-side-px N` | `70` | GT 中只要有一个框的原始浮点长边 `< N`，整帧剔除；推理时长边 `< N` 的预测框也不导出。单位为像素。 |
+| `--minimum-long-side-px N` | `70` | 只在推理导出时过滤长边 `< N` 的预测框；不删除小人工框，也不因此删除整张训练图片。单位为像素。 |
 | `--purge-seconds SEC` | `3.0` | 对每个验证帧，剔除同数据源时间差绝对值不超过该值的训练候选，且跨相机执行。单位为秒；`0` 仍会剔除同时间戳帧。 |
 | `--prepare-only` | 默认关闭 | 只过滤、分折并验证数据，然后退出；不等待 GPU、不启动 Docker、不训练。 |
 | `--docker-image IMAGE` | `car5-rfdetr:v4.4-70px-eval` | 训练、推理和评估所用的 RF-DETR Docker 镜像名或 digest。镜像必须包含训练依赖及仓库训练入口。 |
 | `--pretrain-weights PATH` | 默认使用镜像/模型默认初始化 | 指定初始化权重。该权重不得训练或验证过本次被审计图片，否则会造成 OOF 泄漏。 |
 | `--model NAME` | `medium` | 传给 RF-DETR 训练入口的模型规格。必须是所用镜像支持的名称。 |
-| `--taxonomy NAME` | `car5-v1-six-class` | 写入训练配置和产物溯源的类别体系版本；本审计实际数据固定使用 v1 六个活跃类别。 |
+| `--taxonomy NAME` | `2d-dataset-eight-class` | 写入训练配置和产物溯源的类别体系版本；实际训练固定使用上述 8 类。 |
 | `--epochs N` | `80` | 每折最大训练 epoch 数；可能因 early stopping 提前结束。`--smoke` 会将它强制改为 1。 |
 | `--smoke` | 默认关闭 | 启用单 epoch 冒烟训练，并把产物隔离到 `runs_smoke/`，避免被正式训练续跑逻辑误用。 |
 | `--early-stopping-patience N` | `15` | 验证指标连续多少个 epoch 没有改善后停止训练。 |
@@ -80,7 +80,7 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 | `--grad-accum-steps N` | `4` | 累积多少个设备步骤后执行一次优化器更新；默认有效批量约为 `4 × 4 = 16` 张。 |
 | `--num-workers N` | `0` | 训练 DataLoader 的 worker 数。`0` 表示在主进程加载，稳定但可能较慢。 |
 | `--prediction-threshold SCORE` | `0.001` | 推理导出预测的最低置信度，用于保留完整排序曲线计算 COCO mAP；取值 `0..1`。它不直接决定 TP/FP/FN。 |
-| `--operating-score-threshold SCORE` | `0.20` | 计算 TP、FP、FN、Precision、Recall、F1 和错误候选时使用的置信度工作点；取值 `0..1`。它不改变 mAP 曲线。 |
+| `--operating-score-threshold SCORE` | `0.20` | 计算 TP、FP、FN、Precision、Recall 和 F1 时使用的置信度工作点；取值 `0..1`。它不改变 mAP 曲线。 |
 | `--nms-iou-threshold IOU` | `0.70` | 仅在审计工作点对同类别预测框做 NMS；原始低阈值预测和 COCO mAP 不受影响。 |
 | `--cross-class-nms-iou-threshold IOU` | `0.95` | 对几乎相同位置的跨类别预测框去重并保留最高分框；冲突数量写入指标报告。类别备选本身不等于人工 GT 错误，只有主预测与 GT 实际不一致时才生成类别错误候选。必须不低于同类 NMS 阈值。 |
 | `--gpu INDEX` | 默认所有可见 GPU，可重复 | 限制候选物理 GPU，例如 `--gpu 0 --gpu 1`。五折仍串行，只会从候选卡中选择一张空闲卡。 |
@@ -93,7 +93,9 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 
 ## 过滤和审计口径
 
-- 空图、含任意 GT 长边 `<70 px` 的帧，以及含 `Pedestrian`/`BoxTruck` 的帧会被剔除。
+- 只剔除没有任何人工框的空图。
+- 小人工框完整保留；含小框的图片不会被删除，同图其他大框也不会损失。
+- `Pedestrian` 和 `BoxTruck` 连同原有六类一起训练；含这两类的图片不会被删除。
 - 验证帧前后同数据源 ±3 秒内的所有相机帧不进该折训练集，避免时序泄漏。
 - 内部框保持像素坐标；COCO/Label Studio 坐标只在适配边界转换。
 - OOF 预测长边 `<70 px` 不导出；IoU ≥ 0.5、同类的一对一匹配用于 TP/FP/FN。
@@ -106,8 +108,7 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 每折位于 `<artifact-root>/runs/fold_<n>/`：
 
 - `oof_metrics_iou50.json`：TP/FP/FN、Precision、Recall、F1、mAP50、mAP50:95 及逐类结果；
-- `annotation_error_candidates.csv`：疑似漏标、错类、定位偏差候选；
 - `oof_predictions_70px.coco.json`、推理摘要、训练/推理日志和 checkpoint；
 - `_SUCCESS.json` 或 `_FAILED.json`。
 
-完整五折额外生成 `oof_combined/` 汇总。候选必须回到 Label Studio 人工确认，不能直接当作真实错误或自动验收结论。
+完整五折额外生成 `oof_combined/` 汇总。本轮只训练和评测，不生成漏标、多标、错类或框偏移候选。

@@ -20,8 +20,8 @@ from typing import Any, TextIO
 
 from car5_autolabel.kfold_audit import (
     clip_ground_truth_boxes,
-    enforce_v1_active_taxonomy,
-    filter_training_frames,
+    filter_empty_training_frames,
+    normalize_kfold_training_taxonomy,
     parse_nvidia_smi_csv,
     select_idle_gpu,
 )
@@ -82,7 +82,7 @@ def parse_args() -> argparse.Namespace:
         "--minimum-long-side-px",
         type=int,
         default=70,
-        help="drop a whole frame if any GT long side is below this many pixels (default: 70)",
+        help="drop predictions below this long side during inference (default: 70)",
     )
     parser.add_argument(
         "--purge-seconds",
@@ -110,8 +110,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--taxonomy",
-        default="car5-v1-six-class",
-        help="taxonomy version recorded in provenance (default: car5-v1-six-class)",
+        default="2d-dataset-eight-class",
+        help="taxonomy version recorded in provenance (default: 2d-dataset-eight-class)",
     )
     parser.add_argument(
         "--epochs", type=int, default=80, help="maximum epochs per fold (default: 80)"
@@ -334,10 +334,9 @@ def build_split(
 
 def prepare(args: argparse.Namespace, sources: list[Source]) -> dict[str, Any]:
     preparation_config = {
-        "schema_version": 4,
-        "filter_policy_version": "strict-float-70-v2-clipped-gt",
+        "schema_version": 5,
+        "filter_policy_version": "empty-only-all-eight-classes-v1-clipped-gt",
         "folds": args.folds,
-        "minimum_long_side_px": args.minimum_long_side_px,
         "purge_seconds": args.purge_seconds,
         "assignments": {
             "path": str(args.assignments.resolve()),
@@ -378,10 +377,8 @@ def prepare(args: argparse.Namespace, sources: list[Source]) -> dict[str, Any]:
     for source in sources:
         coco = json.loads(source.coco.read_text(encoding="utf-8-sig"))
         coco, clipped_boxes = clip_ground_truth_boxes(coco)
-        filtered, report = filter_training_frames(
-            coco, minimum_long_side_px=args.minimum_long_side_px
-        )
-        filtered, taxonomy_report = enforce_v1_active_taxonomy(filtered)
+        normalized = normalize_kfold_training_taxonomy(coco)
+        filtered, report = filter_empty_training_frames(normalized)
         current_categories = filtered.get("categories", [])
         if categories is None:
             categories = current_categories
@@ -400,8 +397,9 @@ def prepare(args: argparse.Namespace, sources: list[Source]) -> dict[str, Any]:
                 raise FileNotFoundError(image_path)
             records.append((source, image, annotations_by_image[image_id], assignment))
         source_reports[source.name] = {
-            "size_and_empty_filter": asdict(report),
-            "v1_taxonomy_filter": asdict(taxonomy_report),
+            "empty_frame_filter": asdict(report),
+            "small_ground_truth_filter_applied": False,
+            "training_classes": [category["name"] for category in current_categories],
             "clipped_gt_boxes": clipped_boxes,
         }
 
@@ -443,7 +441,7 @@ def prepare(args: argparse.Namespace, sources: list[Source]) -> dict[str, Any]:
 
     report = {
         "folds": args.folds,
-        "minimum_long_side_px": args.minimum_long_side_px,
+        "prediction_minimum_long_side_px": args.minimum_long_side_px,
         "purge_seconds": args.purge_seconds,
         "eligible_images": len(records),
         "source_filter_reports": source_reports,
@@ -798,6 +796,7 @@ def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
                 "/output/oof_metrics_iou50.json",
                 "--candidates",
                 "/output/annotation_error_candidates.csv",
+                "--skip-error-candidates",
                 "--iou-threshold",
                 "0.5",
                 "--operating-score-threshold",
@@ -913,6 +912,7 @@ def combine_oof_results(args: argparse.Namespace, repo_root: Path) -> None:
             "/audit-output/oof_combined/metrics.json",
             "--candidates",
             "/audit-output/oof_combined/annotation_error_candidates.csv",
+            "--skip-error-candidates",
             "--iou-threshold",
             "0.5",
             "--operating-score-threshold",

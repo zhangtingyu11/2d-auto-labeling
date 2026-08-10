@@ -27,6 +27,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--metrics", type=Path, required=True)
     parser.add_argument("--candidates", type=Path, required=True)
+    parser.add_argument(
+        "--skip-error-candidates",
+        action="store_true",
+        help="compute detection metrics without exporting annotation-error candidates",
+    )
     parser.add_argument("--iou-threshold", type=float, default=0.5)
     parser.add_argument("--operating-score-threshold", type=float, default=0.20)
     parser.add_argument("--nms-iou-threshold", type=float, default=0.7)
@@ -266,7 +271,8 @@ def main() -> None:
                     "map50_95": overall_map50_95,
                 },
                 "per_class": rows,
-                "candidate_rows": len(candidates),
+                "candidate_rows": 0 if args.skip_error_candidates else len(candidates),
+                "error_candidates_exported": not args.skip_error_candidates,
                 "ignore_regions_applied": False,
                 "ignored_host_region_predictions": 0,
             },
@@ -288,10 +294,11 @@ def main() -> None:
         "gt_bbox_xywh",
         "prediction_bbox_xywh",
     ]
-    with args.candidates.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(candidates)
+    if not args.skip_error_candidates:
+        with args.candidates.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(candidates)
 
 
 if __name__ == "__main__":

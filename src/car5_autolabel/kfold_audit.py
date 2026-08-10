@@ -6,7 +6,16 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-V1_ACTIVE_CLASSES = ("Car", "Truck", "Bulldozer", "Excavator", "WaterTruck", "Sign")
+KFOLD_TRAINING_CLASSES = (
+    "Car",
+    "Truck",
+    "BoxTruck",
+    "Bulldozer",
+    "Excavator",
+    "WaterTruck",
+    "Sign",
+    "Pedestrian",
+)
 
 
 def long_side(box_xywh: list[float] | tuple[float, ...]) -> float:
@@ -22,20 +31,10 @@ def long_side(box_xywh: list[float] | tuple[float, ...]) -> float:
 
 
 @dataclass(frozen=True)
-class FrameFilterReport:
+class EmptyFrameFilterReport:
     kept_images: int
     kept_boxes: int
     excluded_empty_images: int
-    excluded_below_size_images: int
-    excluded_boxes_with_removed_images: int
-
-
-@dataclass(frozen=True)
-class TaxonomyFilterReport:
-    kept_images: int
-    kept_boxes: int
-    excluded_inactive_class_images: int
-    excluded_boxes_with_removed_images: int
 
 
 @dataclass(frozen=True)
@@ -81,111 +80,61 @@ def clip_ground_truth_boxes(coco: dict[str, Any]) -> tuple[dict[str, Any], int]:
     return {**coco, "annotations": annotations}, clipped
 
 
-def enforce_v1_active_taxonomy(
-    coco: dict[str, Any],
-) -> tuple[dict[str, Any], TaxonomyFilterReport]:
-    """Keep only frames containing the six v1 classes and remap IDs to 0..5.
-
-    A frame containing an inactive-class annotation is excluded in full. This
-    avoids silently turning a reviewed object into background or an alias.
-    """
+def normalize_kfold_training_taxonomy(coco: dict[str, Any]) -> dict[str, Any]:
+    """Keep all eight labeled classes and remap their IDs deterministically to 0..7."""
 
     name_by_source_id = {
         int(category["id"]): str(category["name"]) for category in coco.get("categories", [])
     }
-    active_id_by_name = {name: index for index, name in enumerate(V1_ACTIVE_CLASSES)}
-    missing = set(V1_ACTIVE_CLASSES) - set(name_by_source_id.values())
-    if missing:
-        raise ValueError(f"source is missing v1 categories: {sorted(missing)}")
-    excluded_image_ids = {
-        int(annotation["image_id"])
-        for annotation in coco.get("annotations", [])
-        if name_by_source_id.get(int(annotation["category_id"])) not in active_id_by_name
-    }
-    kept_images = [
-        image for image in coco.get("images", []) if int(image["id"]) not in excluded_image_ids
-    ]
-    source_annotations = [
-        annotation
-        for annotation in coco.get("annotations", [])
-        if int(annotation["image_id"]) not in excluded_image_ids
-    ]
-    annotations = [
-        {
-            **annotation,
-            "category_id": active_id_by_name[name_by_source_id[int(annotation["category_id"])]],
-        }
-        for annotation in source_annotations
-    ]
-    removed_boxes = len(coco.get("annotations", [])) - len(annotations)
-    filtered = {
+    expected_names = set(KFOLD_TRAINING_CLASSES)
+    source_names = set(name_by_source_id.values())
+    if source_names != expected_names:
+        raise ValueError(
+            "K-fold source categories differ from the required eight classes; "
+            f"missing={sorted(expected_names - source_names)}, "
+            f"unexpected={sorted(source_names - expected_names)}"
+        )
+    target_id_by_name = {name: index for index, name in enumerate(KFOLD_TRAINING_CLASSES)}
+    annotations = []
+    for annotation in coco.get("annotations", []):
+        source_category_id = int(annotation["category_id"])
+        if source_category_id not in name_by_source_id:
+            raise ValueError(
+                f"annotation references unknown category ID: {source_category_id}"
+            )
+        annotations.append(
+            {
+                **annotation,
+                "category_id": target_id_by_name[name_by_source_id[source_category_id]],
+            }
+        )
+    return {
         **coco,
-        "images": kept_images,
         "annotations": annotations,
         "categories": [
-            {"id": category_id, "name": name} for category_id, name in enumerate(V1_ACTIVE_CLASSES)
+            {"id": category_id, "name": name}
+            for category_id, name in enumerate(KFOLD_TRAINING_CLASSES)
         ],
     }
-    return filtered, TaxonomyFilterReport(
-        kept_images=len(kept_images),
-        kept_boxes=len(annotations),
-        excluded_inactive_class_images=len(excluded_image_ids),
-        excluded_boxes_with_removed_images=removed_boxes,
-    )
 
 
-def filter_training_frames(
+def filter_empty_training_frames(
     coco: dict[str, Any],
-    *,
-    minimum_long_side_px: int = 70,
-) -> tuple[dict[str, Any], FrameFilterReport]:
-    """Remove empty frames and whole frames containing any undersized GT box.
+) -> tuple[dict[str, Any], EmptyFrameFilterReport]:
+    """Remove only images with no human boxes; retain every box regardless of size."""
 
-    The policy intentionally works at frame level. If one annotation is below
-    ``minimum_long_side_px``, every annotation from that image is removed.
-    """
-
-    if minimum_long_side_px <= 0:
-        raise ValueError("minimum_long_side_px must be positive")
-    annotations_by_image: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for annotation in coco.get("annotations", []):
-        annotations_by_image[int(annotation["image_id"])].append(annotation)
-
-    kept_image_ids: set[int] = set()
-    excluded_empty = 0
-    excluded_below_size = 0
-    excluded_boxes = 0
-    for image in coco.get("images", []):
-        image_id = int(image["id"])
-        annotations = annotations_by_image.get(image_id, [])
-        if not annotations:
-            excluded_empty += 1
-            continue
-        if any(long_side(annotation["bbox"]) < minimum_long_side_px for annotation in annotations):
-            excluded_below_size += 1
-            excluded_boxes += len(annotations)
-            continue
-        kept_image_ids.add(image_id)
-
-    kept_images = [image for image in coco.get("images", []) if int(image["id"]) in kept_image_ids]
-    kept_annotations = [
-        annotation
-        for annotation in coco.get("annotations", [])
-        if int(annotation["image_id"]) in kept_image_ids
-    ]
-    filtered = {
-        **coco,
-        "images": kept_images,
-        "annotations": kept_annotations,
+    annotated_image_ids = {
+        int(annotation["image_id"]) for annotation in coco.get("annotations", [])
     }
-    report = FrameFilterReport(
+    kept_images = [
+        image for image in coco.get("images", []) if int(image["id"]) in annotated_image_ids
+    ]
+    filtered = {**coco, "images": kept_images}
+    return filtered, EmptyFrameFilterReport(
         kept_images=len(kept_images),
-        kept_boxes=len(kept_annotations),
-        excluded_empty_images=excluded_empty,
-        excluded_below_size_images=excluded_below_size,
-        excluded_boxes_with_removed_images=excluded_boxes,
+        kept_boxes=len(coco.get("annotations", [])),
+        excluded_empty_images=len(coco.get("images", [])) - len(kept_images),
     )
-    return filtered, report
 
 
 def filter_validation_predictions(

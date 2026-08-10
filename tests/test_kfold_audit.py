@@ -3,10 +3,10 @@ from car5_autolabel.kfold_audit import (
     box_iou_xywh,
     clip_ground_truth_boxes,
     deduplicate_operating_predictions,
-    enforce_v1_active_taxonomy,
-    filter_training_frames,
+    filter_empty_training_frames,
     filter_validation_predictions,
     maximum_iou_match_indices,
+    normalize_kfold_training_taxonomy,
     parse_nvidia_smi_csv,
     select_idle_gpu,
 )
@@ -65,16 +65,14 @@ def _fixture() -> dict:
     }
 
 
-def test_filter_training_frames_removes_whole_frame_for_one_small_box_and_empty() -> None:
-    filtered, report = filter_training_frames(_fixture(), minimum_long_side_px=70)
+def test_training_filter_removes_empty_but_keeps_frame_with_small_box() -> None:
+    filtered, report = filter_empty_training_frames(_fixture())
 
-    assert [image["id"] for image in filtered["images"]] == [2, 3]
-    assert [annotation["id"] for annotation in filtered["annotations"]] == [3, 4]
-    assert report.kept_images == 2
-    assert report.kept_boxes == 2
-    assert report.excluded_below_size_images == 1
+    assert [image["id"] for image in filtered["images"]] == [1, 2, 3]
+    assert [annotation["id"] for annotation in filtered["annotations"]] == [1, 2, 3, 4]
+    assert report.kept_images == 3
+    assert report.kept_boxes == 4
     assert report.excluded_empty_images == 1
-    assert report.excluded_boxes_with_removed_images == 2
 
 
 def test_filter_validation_predictions_uses_strict_float_70px_boundary() -> None:
@@ -129,12 +127,13 @@ def test_assignment_maximizes_total_score_instead_of_greedy_first_pair() -> None
     assert set(pairs) == {(0, 1), (1, 0)}
 
 
-def test_v1_taxonomy_excludes_whole_inactive_frame_and_remaps_ids() -> None:
+def test_kfold_taxonomy_keeps_boxtruck_and_pedestrian_and_remaps_all_eight() -> None:
     coco = {
         "images": [{"id": 1}, {"id": 2}],
         "annotations": [
             {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
             {"id": 2, "image_id": 2, "category_id": 3, "bbox": [0, 0, 100, 100]},
+            {"id": 3, "image_id": 2, "category_id": 8, "bbox": [0, 0, 20, 40]},
         ],
         "categories": [
             {"id": 1, "name": "Car"},
@@ -144,22 +143,24 @@ def test_v1_taxonomy_excludes_whole_inactive_frame_and_remaps_ids() -> None:
             {"id": 5, "name": "Excavator"},
             {"id": 6, "name": "WaterTruck"},
             {"id": 7, "name": "Sign"},
+            {"id": 8, "name": "Pedestrian"},
         ],
     }
 
-    filtered, report = enforce_v1_active_taxonomy(coco)
+    normalized = normalize_kfold_training_taxonomy(coco)
 
-    assert [image["id"] for image in filtered["images"]] == [1]
-    assert filtered["annotations"][0]["category_id"] == 0
-    assert [category["name"] for category in filtered["categories"]] == [
+    assert [image["id"] for image in normalized["images"]] == [1, 2]
+    assert [annotation["category_id"] for annotation in normalized["annotations"]] == [0, 2, 7]
+    assert [category["name"] for category in normalized["categories"]] == [
         "Car",
         "Truck",
+        "BoxTruck",
         "Bulldozer",
         "Excavator",
         "WaterTruck",
         "Sign",
+        "Pedestrian",
     ]
-    assert report.excluded_inactive_class_images == 1
 
 
 def test_clip_ground_truth_boxes_updates_bbox_and_area() -> None:
