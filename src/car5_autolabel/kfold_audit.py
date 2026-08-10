@@ -38,6 +38,14 @@ class TaxonomyFilterReport:
     excluded_boxes_with_removed_images: int
 
 
+@dataclass(frozen=True)
+class PredictionNMSReport:
+    input_predictions: int
+    kept_predictions: int
+    suppressed_same_class: int
+    suppressed_cross_class: int
+
+
 def clip_ground_truth_boxes(coco: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Clip COCO GT boxes to image bounds and return the number changed."""
 
@@ -212,6 +220,104 @@ def box_iou_xywh(
     bx2, by2 = bx1 + bw, by1 + bh
     intersection = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * max(0.0, min(ay2, by2) - max(ay1, by1))
     return intersection / (aw * ah + bw * bh - intersection)
+
+
+def deduplicate_operating_predictions(
+    predictions: list[dict[str, Any]],
+    *,
+    same_class_iou_threshold: float = 0.7,
+    cross_class_iou_threshold: float = 0.95,
+) -> tuple[list[dict[str, Any]], PredictionNMSReport]:
+    """Deduplicate review-point predictions without changing raw COCO AP input.
+
+    Same-class boxes use conventional greedy NMS. Nearly identical boxes from
+    different classes retain the highest-score geometry and record the other
+    classes in ``audit_nms.category_conflicts`` so audit consumers can expose
+    the ambiguity instead of drawing duplicate boxes or silently hiding it.
+    """
+
+    for name, threshold in (
+        ("same_class_iou_threshold", same_class_iou_threshold),
+        ("cross_class_iou_threshold", cross_class_iou_threshold),
+    ):
+        if not 0 <= threshold <= 1:
+            raise ValueError(f"{name} must be between zero and one")
+    if cross_class_iou_threshold < same_class_iou_threshold:
+        raise ValueError("cross-class NMS threshold must be at least the same-class threshold")
+
+    def order_key(item: tuple[int, dict[str, Any]]) -> tuple[Any, ...]:
+        index, prediction = item
+        bbox = tuple(float(value) for value in prediction["bbox"])
+        return (
+            int(prediction["image_id"]),
+            -float(prediction.get("score", 0.0)),
+            int(prediction["category_id"]),
+            bbox,
+            index,
+        )
+
+    by_image_and_class: dict[tuple[int, int], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    for index, prediction in enumerate(predictions):
+        key = (int(prediction["image_id"]), int(prediction["category_id"]))
+        by_image_and_class[key].append((index, prediction))
+
+    class_survivors: list[tuple[int, dict[str, Any]]] = []
+    same_class_suppressed = 0
+    for group in by_image_and_class.values():
+        kept: list[tuple[int, dict[str, Any]]] = []
+        for indexed_prediction in sorted(group, key=order_key):
+            prediction = indexed_prediction[1]
+            if any(
+                box_iou_xywh(prediction["bbox"], existing[1]["bbox"])
+                >= same_class_iou_threshold
+                for existing in kept
+            ):
+                same_class_suppressed += 1
+                continue
+            kept.append(indexed_prediction)
+        class_survivors.extend(kept)
+
+    by_image: dict[int, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    for indexed_prediction in class_survivors:
+        by_image[int(indexed_prediction[1]["image_id"])].append(indexed_prediction)
+
+    deduplicated: list[tuple[int, dict[str, Any]]] = []
+    cross_class_suppressed = 0
+    for group in by_image.values():
+        kept: list[tuple[int, dict[str, Any]]] = []
+        for index, source_prediction in sorted(group, key=order_key):
+            conflict_winner: tuple[int, dict[str, Any]] | None = None
+            for existing in kept:
+                if int(existing[1]["category_id"]) == int(source_prediction["category_id"]):
+                    continue
+                if (
+                    box_iou_xywh(source_prediction["bbox"], existing[1]["bbox"])
+                    >= cross_class_iou_threshold
+                ):
+                    conflict_winner = existing
+                    break
+            if conflict_winner is None:
+                kept.append((index, dict(source_prediction)))
+                continue
+            winner = conflict_winner[1]
+            metadata = winner.setdefault("audit_nms", {})
+            metadata.setdefault("category_conflicts", []).append(
+                {
+                    "category_id": int(source_prediction["category_id"]),
+                    "score": float(source_prediction.get("score", 0.0)),
+                    "bbox": [float(value) for value in source_prediction["bbox"]],
+                }
+            )
+            cross_class_suppressed += 1
+        deduplicated.extend(kept)
+
+    result = [prediction for _, prediction in sorted(deduplicated, key=order_key)]
+    return result, PredictionNMSReport(
+        input_predictions=len(predictions),
+        kept_predictions=len(result),
+        suppressed_same_class=same_class_suppressed,
+        suppressed_cross_class=cross_class_suppressed,
+    )
 
 
 def _minimum_cost_assignment(costs: list[list[float]]) -> list[tuple[int, int]]:

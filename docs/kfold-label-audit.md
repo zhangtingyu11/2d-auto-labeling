@@ -81,6 +81,8 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 | `--num-workers N` | `0` | 训练 DataLoader 的 worker 数。`0` 表示在主进程加载，稳定但可能较慢。 |
 | `--prediction-threshold SCORE` | `0.001` | 推理导出预测的最低置信度，用于保留完整排序曲线计算 COCO mAP；取值 `0..1`。它不直接决定 TP/FP/FN。 |
 | `--operating-score-threshold SCORE` | `0.20` | 计算 TP、FP、FN、Precision、Recall、F1 和错误候选时使用的置信度工作点；取值 `0..1`。它不改变 mAP 曲线。 |
+| `--nms-iou-threshold IOU` | `0.70` | 仅在审计工作点对同类别预测框做 NMS；原始低阈值预测和 COCO mAP 不受影响。 |
+| `--cross-class-nms-iou-threshold IOU` | `0.95` | 对几乎相同位置的跨类别预测框去重并保留最高分框；冲突数量写入指标报告。类别备选本身不等于人工 GT 错误，只有主预测与 GT 实际不一致时才生成类别错误候选。必须不低于同类 NMS 阈值。 |
 | `--gpu INDEX` | 默认所有可见 GPU，可重复 | 限制候选物理 GPU，例如 `--gpu 0 --gpu 1`。五折仍串行，只会从候选卡中选择一张空闲卡。 |
 | `--minimum-free-memory-mib N` | `22000` | GPU 被视为可用所需的最小空闲显存，单位 MiB。 |
 | `--maximum-gpu-utilization PCT` | `5` | GPU 被视为空闲所允许的最大核心利用率，单位百分比。 |
@@ -96,6 +98,8 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 - 内部框保持像素坐标；COCO/Label Studio 坐标只在适配边界转换。
 - OOF 预测长边 `<70 px` 不导出；IoU ≥ 0.5、同类的一对一匹配用于 TP/FP/FN。
 - 工作点默认 score `0.20`；mAP 保留 `0.001` 预测以维持完整置信度曲线。
+- 工作点预测先按同类 IoU `0.70` 做 NMS；跨类别只有 IoU `0.95` 以上的近乎同框预测才合并。跨类备选只计入模型冲突统计，不单独当作人工标注错误；NMS 不参与官方 COCO mAP。
+- Label Studio 的“可能类别错误”紫框显示模型预测类别，任务摘要同时记录人工 GT 类别，便于直接判断应保留还是改类。
 
 ## 主要输出
 

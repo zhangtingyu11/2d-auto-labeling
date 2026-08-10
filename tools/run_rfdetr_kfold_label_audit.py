@@ -152,6 +152,18 @@ def parse_args() -> argparse.Namespace:
         help="score cutoff used only for TP/FP/FN and error candidates (default: 0.20)",
     )
     parser.add_argument(
+        "--nms-iou-threshold",
+        type=float,
+        default=0.70,
+        help="same-class NMS IoU used only at the audit operating point (default: 0.70)",
+    )
+    parser.add_argument(
+        "--cross-class-nms-iou-threshold",
+        type=float,
+        default=0.95,
+        help="merge nearly identical cross-class audit boxes and report conflict (default: 0.95)",
+    )
+    parser.add_argument(
         "--gpu",
         type=int,
         action="append",
@@ -790,6 +802,10 @@ def run_fold(args: argparse.Namespace, fold: int, repo_root: Path) -> None:
                 "0.5",
                 "--operating-score-threshold",
                 str(args.operating_score_threshold),
+                "--nms-iou-threshold",
+                str(args.nms_iou_threshold),
+                "--cross-class-nms-iou-threshold",
+                str(args.cross_class_nms_iou_threshold),
             ]
         )
         run_logged(audit, run_dir / "audit.log")
@@ -901,6 +917,10 @@ def combine_oof_results(args: argparse.Namespace, repo_root: Path) -> None:
             "0.5",
             "--operating-score-threshold",
             str(args.operating_score_threshold),
+            "--nms-iou-threshold",
+            str(args.nms_iou_threshold),
+            "--cross-class-nms-iou-threshold",
+            str(args.cross_class_nms_iou_threshold),
         ]
     )
     run_logged(audit, combined / "audit.log")
@@ -924,6 +944,9 @@ def validate_args(args: argparse.Namespace) -> None:
         args.num_workers < 0
         or not 0 <= args.prediction_threshold <= 1
         or not 0 <= args.operating_score_threshold <= 1
+        or not 0 <= args.nms_iou_threshold <= 1
+        or not 0 <= args.cross_class_nms_iou_threshold <= 1
+        or args.cross_class_nms_iou_threshold < args.nms_iou_threshold
     ):
         raise ValueError("num-workers or prediction threshold is out of range")
     if args.pretrain_weights and not args.pretrain_weights.is_file():

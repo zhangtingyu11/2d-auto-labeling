@@ -2,6 +2,7 @@ from car5_autolabel.kfold_audit import (
     _minimum_cost_assignment,
     box_iou_xywh,
     clip_ground_truth_boxes,
+    deduplicate_operating_predictions,
     enforce_v1_active_taxonomy,
     filter_training_frames,
     filter_validation_predictions,
@@ -9,6 +10,46 @@ from car5_autolabel.kfold_audit import (
     parse_nvidia_smi_csv,
     select_idle_gpu,
 )
+
+
+def test_nms_suppresses_same_class_duplicate_at_operating_point() -> None:
+    predictions = [
+        {"image_id": 1, "category_id": 0, "bbox": [0, 0, 100, 100], "score": 0.8},
+        {"image_id": 1, "category_id": 0, "bbox": [5, 5, 100, 100], "score": 0.7},
+        {"image_id": 2, "category_id": 0, "bbox": [5, 5, 100, 100], "score": 0.6},
+    ]
+
+    kept, report = deduplicate_operating_predictions(predictions)
+
+    assert [(row["image_id"], row["score"]) for row in kept] == [(1, 0.8), (2, 0.6)]
+    assert report.suppressed_same_class == 1
+    assert report.suppressed_cross_class == 0
+
+
+def test_nms_consolidates_identical_cross_class_boxes_and_records_conflict() -> None:
+    predictions = [
+        {"image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100], "score": 0.7},
+        {"image_id": 1, "category_id": 2, "bbox": [0, 0, 100, 100], "score": 0.9},
+    ]
+
+    kept, report = deduplicate_operating_predictions(predictions)
+
+    assert len(kept) == 1
+    assert kept[0]["category_id"] == 2
+    assert kept[0]["audit_nms"]["category_conflicts"][0]["category_id"] == 1
+    assert report.suppressed_cross_class == 1
+
+
+def test_nms_keeps_overlapping_different_objects_below_cross_class_threshold() -> None:
+    predictions = [
+        {"image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100], "score": 0.9},
+        {"image_id": 1, "category_id": 2, "bbox": [5, 5, 100, 100], "score": 0.8},
+    ]
+
+    kept, report = deduplicate_operating_predictions(predictions)
+
+    assert len(kept) == 2
+    assert report.suppressed_cross_class == 0
 
 
 def _fixture() -> dict:

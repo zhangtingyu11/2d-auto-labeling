@@ -16,6 +16,7 @@ from pycocotools.cocoeval import COCOeval
 
 from car5_autolabel.kfold_audit import (
     box_iou_xywh,
+    deduplicate_operating_predictions,
     maximum_iou_match_indices,
 )
 
@@ -28,6 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidates", type=Path, required=True)
     parser.add_argument("--iou-threshold", type=float, default=0.5)
     parser.add_argument("--operating-score-threshold", type=float, default=0.20)
+    parser.add_argument("--nms-iou-threshold", type=float, default=0.7)
+    parser.add_argument("--cross-class-nms-iou-threshold", type=float, default=0.95)
     return parser.parse_args()
 
 
@@ -75,11 +78,16 @@ def main() -> None:
     )
     if unknown_image_ids:
         raise ValueError(f"predictions reference unknown image IDs: {unknown_image_ids[:10]}")
-    operating_predictions = [
+    score_filtered_predictions = [
         prediction
         for prediction in predictions
         if float(prediction.get("score", 0.0)) >= args.operating_score_threshold
     ]
+    operating_predictions, nms_report = deduplicate_operating_predictions(
+        score_filtered_predictions,
+        same_class_iou_threshold=args.nms_iou_threshold,
+        cross_class_iou_threshold=args.cross_class_nms_iou_threshold,
+    )
     for prediction in operating_predictions:
         predictions_by_image[int(prediction["image_id"])].append(prediction)
 
@@ -121,6 +129,7 @@ def main() -> None:
                     "issue": "class_mismatch",
                     "gt_class": categories[int(gt_row["category_id"])],
                     "predicted_class": categories.get(int(prediction["category_id"]), "unknown"),
+                    "alternative_predicted_classes": "",
                     "score": prediction.get("score", ""),
                     "iou": iou,
                     "gt_bbox_xywh": json.dumps(gt_row["bbox"]),
@@ -155,6 +164,7 @@ def main() -> None:
                     "issue": "localization_error",
                     "gt_class": categories[int(gt_row["category_id"])],
                     "predicted_class": categories[int(prediction["category_id"])],
+                    "alternative_predicted_classes": "",
                     "score": prediction.get("score", ""),
                     "iou": iou,
                     "gt_bbox_xywh": json.dumps(gt_row["bbox"]),
@@ -173,6 +183,7 @@ def main() -> None:
                         "issue": "unmatched_gt_possible_missed_or_bad_label",
                         "gt_class": categories[category_id],
                         "predicted_class": "",
+                        "alternative_predicted_classes": "",
                         "score": "",
                         "iou": "",
                         "gt_bbox_xywh": json.dumps(gt_row["bbox"]),
@@ -193,6 +204,7 @@ def main() -> None:
                         "issue": "unmatched_prediction_possible_missing_gt",
                         "gt_class": "",
                         "predicted_class": categories.get(category_id, "unknown"),
+                        "alternative_predicted_classes": "",
                         "score": prediction.get("score", ""),
                         "iou": "",
                         "gt_bbox_xywh": "",
@@ -235,6 +247,14 @@ def main() -> None:
             {
                 "iou_threshold": args.iou_threshold,
                 "operating_score_threshold": args.operating_score_threshold,
+                "operating_point_nms": {
+                    "same_class_iou_threshold": args.nms_iou_threshold,
+                    "cross_class_iou_threshold": args.cross_class_nms_iou_threshold,
+                    "input_predictions": nms_report.input_predictions,
+                    "kept_predictions": nms_report.kept_predictions,
+                    "suppressed_same_class": nms_report.suppressed_same_class,
+                    "suppressed_cross_class": nms_report.suppressed_cross_class,
+                },
                 "overall": {
                     "tp": total["tp"],
                     "fp": total["fp"],
@@ -262,6 +282,7 @@ def main() -> None:
         "issue",
         "gt_class",
         "predicted_class",
+        "alternative_predicted_classes",
         "score",
         "iou",
         "gt_bbox_xywh",
