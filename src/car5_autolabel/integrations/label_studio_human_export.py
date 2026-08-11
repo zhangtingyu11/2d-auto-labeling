@@ -12,7 +12,13 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 
-AUDIT_DATA_KEYS = {"review_tag", "review_tag_label", "review_summary"}
+AUDIT_DATA_KEYS = {
+    "candidate_count",
+    "candidate_summary",
+    "review_tag",
+    "review_tag_label",
+    "review_summary",
+}
 
 
 @dataclass(frozen=True)
