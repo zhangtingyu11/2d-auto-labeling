@@ -111,6 +111,26 @@ annotation。它按任务替换旧审计提示，而不是追加：旧的 `audit
 ID 并按 ID 去重。因此同一输入重复执行不会增加框，历史重复提示也会被清理。
 人工标注结果以及截断、遮挡等人工字段不会被删除或复制。
 
+一键训练 worker 使用 API-only 模式，不需要直接读取 SQLite。Token 只通过环境变量
+传入，`--backup` 保存应用更新前的完整项目 JSON：
+
+```bash
+CAR5_LABEL_STUDIO_API_TOKEN='<token>' PYTHONPATH=src \
+python3 tools/sync_kfold_audit_to_label_studio.py \
+  --project-id 3 \
+  --artifact-root /path/to/kfold-run \
+  --model-version rfdetr-kfold-reviewed-v3 \
+  --url http://127.0.0.1:8090 \
+  --backup /path/to/label-studio-before-sync.json \
+  --report /path/to/sync-report.json \
+  --workers 1 \
+  --apply
+```
+
+省略 `--database` 时必须提供 `CAR5_LABEL_STUDIO_API_TOKEN`。该模式通过项目原生
+JSON 导出读取 task、annotation 和 draft，再通过 PATCH 更新现有对象；不会创建任务
+或 annotation。保留 `--database` 的命令仍可用于人工维护和 SQLite 一致性备份。
+
 先执行 dry-run（没有 `--apply`，不会写 Label Studio）：
 
 ```bash

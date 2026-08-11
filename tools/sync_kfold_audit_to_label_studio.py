@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import urllib.error
 import urllib.request
@@ -20,16 +21,26 @@ from car5_autolabel.integrations.label_studio_kfold_sync import (
     update_label_config,
     update_task_audit_data,
 )
+from car5_autolabel.integrations.label_studio_project_api import (
+    LabelStudioProjectApi,
+    LabelStudioProjectSnapshot,
+    snapshot_to_sync_state,
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument(
+        "--database",
+        type=Path,
+        help="Optional SQLite database. Omit to load state through the Label Studio API.",
+    )
     parser.add_argument("--project-id", type=int, required=True)
     parser.add_argument("--artifact-root", type=Path, required=True)
     parser.add_argument("--model-version", required=True)
     parser.add_argument("--url", default="http://127.0.0.1:8090")
     parser.add_argument("--backup", type=Path)
+    parser.add_argument("--report", type=Path, help="Write the final sync report as JSON")
     parser.add_argument(
         "--workers",
         type=int,
@@ -72,6 +83,17 @@ def parse_args() -> argparse.Namespace:
 
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def _write_report(path: Path | None, report: dict[str, Any]) -> None:
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    temporary.replace(path)
 
 
 def _load_state(database: Path, project_id: int) -> dict[str, Any]:
@@ -127,6 +149,42 @@ def _load_state(database: Path, project_id: int) -> dict[str, Any]:
         }
     finally:
         connection.close()
+
+
+def _load_api_state(
+    *, base_url: str, token: str, project_id: int
+) -> tuple[dict[str, Any], LabelStudioProjectSnapshot]:
+    snapshot = LabelStudioProjectApi(base_url=base_url, token=token).snapshot(project_id)
+    state = snapshot_to_sync_state(snapshot)
+    state["token"] = token
+    return state, snapshot
+
+
+def _backup_api_snapshot(
+    snapshot: LabelStudioProjectSnapshot,
+    destination: Path,
+    *,
+    reuse_existing: bool,
+) -> None:
+    if destination.exists():
+        if not reuse_existing:
+            raise FileExistsError(f"backup already exists: {destination}")
+        existing = _load_json(destination)
+        if not isinstance(existing, dict) or not isinstance(existing.get("tasks"), list):
+            raise ValueError(f"existing API backup is invalid: {destination}")
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(
+            {"project": snapshot.project, "tasks": snapshot.tasks},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
 
 
 def _backup_database(source: Path, destination: Path, *, reuse_existing: bool) -> None:
@@ -370,12 +428,28 @@ def main() -> None:
     args = parse_args()
     if args.workers <= 0:
         raise ValueError("workers must be positive")
+    if args.direct_sqlite_update and args.database is None:
+        raise ValueError("--direct-sqlite-update requires --database")
     combined = args.artifact_root / "oof_combined"
     ground_truth = _load_json(combined / "ground_truth.coco.json")
     predictions = _load_json(combined / "predictions_70px.coco.json")
     if not isinstance(ground_truth, dict) or not isinstance(predictions, list):
         raise ValueError("unexpected OOF artifact format")
-    state = _load_state(args.database, args.project_id)
+    base_url = args.url.rstrip("/")
+    api_snapshot: LabelStudioProjectSnapshot | None = None
+    if args.database is not None:
+        state = _load_state(args.database, args.project_id)
+    else:
+        token = os.environ.get("CAR5_LABEL_STUDIO_API_TOKEN", "")
+        if not token:
+            raise ValueError(
+                "CAR5_LABEL_STUDIO_API_TOKEN is required when --database is omitted"
+            )
+        state, api_snapshot = _load_api_state(
+            base_url=base_url,
+            token=token,
+            project_id=args.project_id,
+        )
     updates, report = build_updates(
         state=state,
         ground_truth=ground_truth,
@@ -395,13 +469,23 @@ def main() -> None:
     report["dry_run"] = not args.apply
     print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
     if not args.apply:
+        _write_report(args.report, report)
         return
     if args.backup is None:
         raise ValueError("--backup is required with --apply")
-    _backup_database(
-        args.database, args.backup, reuse_existing=args.reuse_backup
-    )
+    if args.database is not None:
+        _backup_database(
+            args.database, args.backup, reuse_existing=args.reuse_backup
+        )
+    else:
+        assert api_snapshot is not None
+        _backup_api_snapshot(
+            api_snapshot,
+            args.backup,
+            reuse_existing=args.reuse_backup,
+        )
     if args.direct_sqlite_update:
+        assert args.database is not None
         _direct_sqlite_update(
             database=args.database,
             project_id=args.project_id,
@@ -410,8 +494,9 @@ def main() -> None:
         )
         print(f"updates={len(updates)}/{len(updates)}", flush=True)
         print(f"backup={args.backup}", flush=True)
+        report["applied"] = True
+        _write_report(args.report, report)
         return
-    base_url = args.url.rstrip("/")
     # Add the new control before results reference it. Keep legacy controls until
     # their stored results are removed, because Label Studio validates config changes.
     if transitional_label_config != state["label_config"]:
@@ -435,6 +520,8 @@ def main() -> None:
             payload={"label_config": final_label_config},
         )
     print(f"backup={args.backup}", flush=True)
+    report["applied"] = True
+    _write_report(args.report, report)
 
 
 if __name__ == "__main__":

@@ -10,23 +10,17 @@ import re
 import secrets
 import threading
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from car5_autolabel.integrations.label_studio_training_upload import (
-    convert_training_export,
-)
-
-
 SAFE_RUN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}")
-MAX_UPLOAD_BYTES = 100 * 1024 * 1024
-ACTIVE_STATES = {"preparing", "queued", "running"}
+ACTIVE_STATES = {"queued", "exporting", "preparing", "running", "syncing"}
 
 
 @dataclass(frozen=True)
@@ -135,7 +129,7 @@ class TrainingJobManager:
             (job for job in self.list_jobs() if job.get("state") in ACTIVE_STATES), None
         )
 
-    def create_job(self, *, run_name: str, upload_path: Path) -> dict[str, Any]:
+    def create_job(self, *, run_name: str) -> dict[str, Any]:
         if not SAFE_RUN_NAME.fullmatch(run_name):
             raise ValueError(
                 "run name must contain 1-48 ASCII letters, digits, hyphens, or underscores"
@@ -150,18 +144,16 @@ class TrainingJobManager:
             job_id = f"{timestamp}-{run_name}-{uuid.uuid4().hex[:8]}"
             job_dir = self.jobs_root / job_id
             job_dir.mkdir(parents=False)
-            stored_upload = job_dir / "label_studio_export.json"
-            upload_path.replace(stored_upload)
-            coco = job_dir / "human.coco.json"
-            assignments = job_dir / "assignments.csv"
-            conversion_summary = job_dir / "conversion_summary.json"
             workspace = self.config.workspace_root / job_id
             artifacts = self.config.artifact_root / "runs" / job_id
             metadata = {
                 "job_id": job_id,
                 "run_name": run_name,
-                "state": "preparing",
+                "state": "queued",
+                "source_mode": "label_studio_api",
+                "label_studio_project_id": self.config.project_id,
                 "created_at": datetime.now().astimezone().isoformat(),
+                "queued_at": datetime.now().astimezone().isoformat(),
                 "workspace_directory": str(workspace),
                 "artifact_directory": str(artifacts),
                 "log_path": str(job_dir / "runner.log"),
@@ -171,33 +163,7 @@ class TrainingJobManager:
                 "gpu_indices": list(self.config.gpu_indices),
             }
             _atomic_json(self._metadata_path(job_id), metadata)
-            try:
-                summary = convert_training_export(
-                    label_studio_export=stored_upload,
-                    assignment_template=self.config.assignment_template,
-                    coco_output=coco,
-                    assignments_output=assignments,
-                    summary_output=conversion_summary,
-                )
-                metadata["conversion"] = asdict(summary)
-                metadata.update(
-                    {
-                        "state": "queued",
-                        "queued_at": datetime.now().astimezone().isoformat(),
-                    }
-                )
-                _atomic_json(self._metadata_path(job_id), metadata)
-                return metadata
-            except Exception as error:
-                metadata.update(
-                    {
-                        "state": "rejected",
-                        "finished_at": datetime.now().astimezone().isoformat(),
-                        "error": str(error),
-                    }
-                )
-                _atomic_json(self._metadata_path(job_id), metadata)
-                raise
+            return metadata
 
     def read_log(self, job_id: str, *, maximum_bytes: int = 100_000) -> str:
         metadata = self.get_job(job_id)
@@ -219,13 +185,15 @@ body{margin:0;background:#f6f7f9;color:#1f2937;font:14px system-ui,-apple-system
 </style></head><body>
 <div class="top"><h1>2D数据集 · K折训练</h1><a href="/projects/__PROJECT_ID__/data/">← 返回 Label Studio</a></div>
 <main class="wrap"><section class="card"><h2>启动新一轮五折训练</h2>
-<p class="hint">上传 Label Studio 的普通 JSON 导出。系统只保留人工 <code>label</code> 框，自动删除所有“可能××”提示；未提交任务会拒绝启动。</p>
-<form id="form"><div class="row"><div><label>训练版本名</label><input name="run_name" value="reviewed-v2" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,47}" required></div><div><label>Label Studio JSON</label><input name="export_file" type="file" accept="application/json,.json" required></div></div><p><button id="start">校验并启动五折</button></p></form><div id="message"></div></section>
+<p class="hint">无需导出文件。点击后自动读取当前 Label Studio 项目的全部已提交标注，只保留可编辑人工框并删除锁定的“可能××”提示；五折训练成功后自动去重并更新提示。训练期间若人工标注发生变化，系统会停止回写，避免旧结果覆盖新标注。</p>
+<form id="form"><div><label>训练版本名（仅用于区分本轮产物，支持英文、数字、-、_）</label><input name="run_name" value="reviewed-v2" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,47}" required></div><p><button id="start">一键读取、训练并更新</button></p></form><div id="message"></div></section>
 <section class="card"><div class="status"><h2>最近任务</h2><span id="state" class="pill">无</span></div><div id="summary" class="hint"></div><pre id="log">尚未启动训练</pre></section></main>
 <script>
 let current=null;const form=document.querySelector('#form'),msg=document.querySelector('#message'),log=document.querySelector('#log'),state=document.querySelector('#state'),summary=document.querySelector('#summary');
-async function refresh(){const list=await fetch('/kfold-training/api/jobs').then(r=>r.json());if(!current&&list.length)current=list[0].job_id;if(!current)return;const job=await fetch('/kfold-training/api/jobs/'+current).then(r=>r.json());state.textContent=job.state;const c=job.conversion||{};summary.textContent=`任务 ${job.job_id}｜人工框 ${c.human_box_count??'-'}｜已删除提示 ${c.removed_non_human_result_count??'-'}｜空图 ${c.empty_task_count??'-'}｜BS ${job.batch_size}｜GPU ${(job.gpu_indices||[]).join(',')}`;log.textContent=await fetch('/kfold-training/api/jobs/'+current+'/log').then(r=>r.text());log.scrollTop=log.scrollHeight;}
-form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='正在上传并校验…';document.querySelector('#start').disabled=true;try{const r=await fetch('/kfold-training/api/jobs',{method:'POST',body:new FormData(form)});const body=await r.json();if(!r.ok)throw new Error(body.detail||'启动失败');current=body.job_id;msg.className='ok';msg.textContent='校验通过，五折训练已启动';await refresh();}catch(e){msg.className='error';msg.textContent=e.message;}finally{document.querySelector('#start').disabled=false;}});refresh();setInterval(refresh,5000);
+const stateNames={queued:'等待处理',exporting:'读取标注',preparing:'筛选数据',running:'五折训练中',syncing:'更新Label Studio',completed:'已完成并更新',stale:'训练完成，标注有新修改，未回写',failed:'失败',sync_failed:'训练完成，回写失败',interrupted:'训练中断'};
+async function checked(url,options){const r=await fetch(url,options);if(!r.ok){let detail='请求失败';try{detail=(await r.json()).detail||detail}catch(_){}throw new Error(detail)}return r;}
+async function refresh(){try{const list=await checked('/kfold-training/api/jobs').then(r=>r.json());if(!current&&list.length)current=list[0].job_id;if(!current)return;const job=await checked('/kfold-training/api/jobs/'+current).then(r=>r.json());state.textContent=stateNames[job.state]||job.state;const c=job.conversion||{};const s=job.sync||{};summary.textContent=`任务 ${job.job_id}｜人工框 ${c.human_box_count??'-'}｜已删除提示 ${c.removed_non_human_result_count??'-'}｜空图 ${c.empty_task_count??'-'}｜回写 ${s.changed_annotations??'-'} 个标注｜BS ${job.batch_size}｜GPU ${(job.gpu_indices||[]).join(',')}`;log.textContent=await checked('/kfold-training/api/jobs/'+current+'/log').then(r=>r.text());log.scrollTop=log.scrollHeight;}catch(e){msg.className='error';msg.textContent=e.message;}}
+form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='任务提交中…';document.querySelector('#start').disabled=true;try{const r=await checked('/kfold-training/api/jobs',{method:'POST',body:new FormData(form)});const body=await r.json();current=body.job_id;msg.className='ok';msg.textContent='已进入队列：将自动读取标注、训练并回写';await refresh();}catch(e){msg.className='error';msg.textContent=e.message;}finally{document.querySelector('#start').disabled=false;}});refresh();setInterval(refresh,5000);
 </script></body></html>"""
 
 
@@ -293,28 +261,14 @@ def create_training_control_app(config: TrainingControlConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="job not found") from error
 
     @app.post("/kfold-training/api/jobs", status_code=201)
-    async def create_job(
+    def create_job(
         run_name: str = Form(...),  # noqa: B008
-        export_file: UploadFile = File(...),  # noqa: B008
         _user: str = Depends(authenticate),  # noqa: B008
     ) -> JSONResponse:
-        if export_file.content_type not in {"application/json", "text/json", "text/plain", ""}:
-            raise HTTPException(status_code=415, detail="upload a Label Studio JSON export")
-        temporary = manager.jobs_root / f".upload-{uuid.uuid4().hex}.json"
-        size = 0
         try:
-            with temporary.open("wb") as handle:
-                while chunk := await export_file.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > MAX_UPLOAD_BYTES:
-                        raise HTTPException(status_code=413, detail="JSON export exceeds 100 MiB")
-                    handle.write(chunk)
-            try:
-                metadata = manager.create_job(run_name=run_name, upload_path=temporary)
-            except (ValueError, RuntimeError, json.JSONDecodeError) as error:
-                raise HTTPException(status_code=400, detail=str(error)) from error
+            metadata = manager.create_job(run_name=run_name)
             return JSONResponse(metadata, status_code=201)
-        finally:
-            temporary.unlink(missing_ok=True)
+        except (ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     return app
