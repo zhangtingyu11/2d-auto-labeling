@@ -103,6 +103,69 @@ PYTHONPATH=src python tools/run_rfdetr_kfold_label_audit.py --help
 - 工作点预测先按同类 IoU `0.70` 做 NMS；跨类别只有 IoU `0.95` 以上的近乎同框预测才合并。跨类备选只计入模型冲突统计，不单独当作人工标注错误；NMS 不参与官方 COCO mAP。
 - Label Studio 的“可能类别错误”紫框显示模型预测类别，任务摘要同时记录人工 GT 类别，便于直接判断应保留还是改类。
 
+## 将五折结果更新到现有 Label Studio 项目
+
+`tools/sync_kfold_audit_to_label_studio.py` 只更新现有项目，不创建任务或
+annotation。它按任务替换旧审计提示，而不是追加：旧的 `audit_hint`、
+`prediction_reference` 和 `review_issue` 结果会先被移除，新提示使用确定性
+ID 并按 ID 去重。因此同一输入重复执行不会增加框，历史重复提示也会被清理。
+人工标注结果以及截断、遮挡等人工字段不会被删除或复制。
+
+先执行 dry-run（没有 `--apply`，不会写 Label Studio）：
+
+```bash
+PYTHONPATH=src python3 tools/sync_kfold_audit_to_label_studio.py \
+  --database /path/to/label_studio.sqlite3 \
+  --project-id 3 \
+  --artifact-root /path/to/kfold-run \
+  --model-version rfdetr-kfold-bs32-fivefold-oof-nms-v3
+```
+
+确认报告中的 `created_tasks` 和 `created_annotations` 均为 `0` 后再应用：
+
+```bash
+PYTHONPATH=src python3 tools/sync_kfold_audit_to_label_studio.py \
+  --database /path/to/label_studio.sqlite3 \
+  --project-id 3 \
+  --artifact-root /path/to/kfold-run \
+  --model-version rfdetr-kfold-bs32-fivefold-oof-nms-v3 \
+  --backup /path/to/backups/label_studio-before-kfold-sync.sqlite3 \
+  --apply
+```
+
+参数含义：
+
+- `--artifact-root`：包含 `oof_combined/ground_truth.coco.json` 和
+  `predictions_70px.coco.json` 的五折输出目录；
+- `--model-version`：写入提示框来源信息，并参与稳定提示 ID 的计算；
+- `--operating-score-threshold`：参与人工框匹配的最低预测分数，默认 `0.2`；
+- `--possible-missing-score-threshold`：生成红色“可能漏标”提示的最低预测分数，
+  默认 `0.4`。`0.2–0.4` 的预测仍参与匹配，但不会单独生成红框；
+- `--backup`：应用更新前创建的一致性 SQLite 备份，已存在时命令会拒绝覆盖；
+- `--reuse-backup`：上一次同步中断后，复用并校验已有备份；
+- `--apply`：真正写入；不带该参数始终只是 dry-run；
+- `--project-id`：要更新的现有项目，脚本不会创建新项目。
+
+Label Studio 使用 SQLite 时保持默认 `--workers 1`；不要提高并发写入数，否则
+SQLite 可能返回 `database is locked`。
+
+大量任务需要快速更新时，可以先停止 Label Studio，再增加
+`--direct-sqlite-update`。该模式仍先创建/校验备份，只在一个事务中执行
+`UPDATE`，不会执行 `INSERT`；事务成功或失败会整体提交或整体回滚。完成后再
+启动 Label Studio。
+
+同步保留项目内全部任务。未进入训练/OOF 的空图会清除旧提示，并标记为
+`excluded`；已审计但没有疑似问题的图片标记为 `no_candidate`。预测先经过分数、
+70 px 长边过滤以及同类/跨类 NMS，再做一对一匹配，避免同一预测位置生成多个
+重复提示框。
+
+紫色类别错误提示会把模型类别直接写进框标签，例如
+`可能类别错误（预测=Car）`；任务摘要同时保留 `GT=Truck PRED=Car`，人工原框
+仍使用原类别标签并保持可编辑。
+
+红色漏标提示同样直接显示模型类别，例如 `可能漏标（预测=Excavator）`，因为
+该提示来自没有匹配到人工框的模型预测。
+
 ## 主要输出
 
 每折位于 `<artifact-root>/runs/fold_<n>/`：
