@@ -97,20 +97,10 @@ class TrainingJobManager:
         return jobs
 
     def _refresh(self, metadata: dict[str, Any]) -> dict[str, Any]:
-        if metadata.get("state") != "running":
-            return metadata
-        job_id = str(metadata["job_id"])
-        pid = int(metadata.get("pid", 0))
-        if pid > 0:
-            try:
-                os.kill(pid, 0)
-                return metadata
-            except OSError:
-                pass
-        success = Path(metadata["artifact_directory"]) / "_ALL_SUCCESS.json"
-        metadata["state"] = "completed" if success.is_file() else "interrupted"
-        metadata["finished_at"] = datetime.now().astimezone().isoformat()
-        _atomic_json(self._metadata_path(job_id), metadata)
+        # The control service may run in a container while the worker and its
+        # training child run in the host PID namespace.  A host PID therefore
+        # cannot be probed reliably from here.  The host worker is the sole
+        # owner of lifecycle state; the web process only reports what it wrote.
         return metadata
 
     def list_jobs(self) -> list[dict[str, Any]]:

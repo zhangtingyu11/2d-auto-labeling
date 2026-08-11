@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -79,3 +80,19 @@ def test_one_click_rejects_second_active_job(tmp_path: Path) -> None:
 
     assert second.status_code == 400
     assert "only one job is allowed" in second.json()["detail"]
+
+
+def test_manager_does_not_probe_worker_pid_from_web_process(tmp_path: Path) -> None:
+    manager = TrainingJobManager(_config(tmp_path))
+    metadata = manager.create_job(run_name="host-worker")
+    metadata.update({"state": "running", "pid": 2_147_483_647})
+    metadata_path = Path(metadata["log_path"]).parent / "job.json"
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+    refreshed = manager.get_job(metadata["job_id"])
+
+    assert refreshed["state"] == "running"
+    assert refreshed["pid"] == 2_147_483_647
+    assert "finished_at" not in refreshed
